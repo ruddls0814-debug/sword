@@ -278,6 +278,14 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
 .room .acts{display:flex;gap:6px}.room button{border-radius:10px;padding:7px 12px;font-weight:700;border:1px solid var(--ember);color:var(--ember);background:var(--soot)}
 .room button.del{border-color:var(--ash);color:var(--dim)}
 .room.cur{background:rgba(255,122,47,.08);border-radius:8px;padding-inline:6px}
+.appdl{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:7px 12px;font-size:13px;font-weight:700;background:linear-gradient(180deg,#2c3f2a,#1e2c1d);border:1px solid #4f7a4a;color:#cfeec9}
+.appdl.big{justify-content:center;width:100%;padding:12px;font-size:15px;border-radius:14px}
+.isheet{width:min(400px,100%);background:var(--soot);border:1px solid var(--ash);border-radius:20px;padding:20px;display:grid;gap:12px}
+.isheet h2{font-family:var(--f-display);font-weight:400;font-size:24px;margin:0}
+.isheet ol{margin:0;padding-left:20px;display:grid;gap:8px;line-height:1.5}
+.isheet .os{display:flex;gap:6px}.isheet .os button{flex:1;padding:8px;border-radius:10px;border:1px solid var(--ash);background:transparent;color:inherit;font-weight:700}
+.isheet .os button[aria-pressed=true]{background:var(--ash)}
+.isheet .k{display:inline-block;border:1px solid var(--ash);border-radius:6px;padding:0 6px;font-weight:700}
 </style>
 </head>
 <body>
@@ -290,6 +298,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
       <div class="chip"><span class="k">최고</span><span id="best">-</span></div>
     </div>
     <div class="who" id="who"></div>
+    <button class="appdl" type="button" data-install hidden>📲 앱 설치</button>
   </header>
 
   <section class="anvil" aria-label="모루">
@@ -372,6 +381,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
         <div class="shop">
           <div class="item"><div><b>파괴 방지</b><p>강화할 때 「파괴 방지」를 체크하면 지금 검 판매가의 1/4을 더 내고, 파괴가 나와도 단계가 유지됩니다. +15부터는 쓸 수 없습니다.</p></div><span id="buyScroll" hidden></span><span id="scrollPrice" hidden></span></div>
           <div class="item"><div><b>파산 지원금</b><p>골드와 검 판매가를 합쳐 10 G 미만이면 하루 3번까지 10만 G를 받을 수 있습니다.</p></div><button class="btn" id="aidBtn" style="padding:10px 14px">받기<small id="aidLeft">-</small></button></div>
+          <div class="item" data-installrow hidden><div><b>앱 설치</b><p>홈 화면에 아이콘을 만들어 앱처럼 전체 화면으로 실행합니다. 아이폰·안드로이드 모두 됩니다.</p></div><button class="btn" type="button" data-install style="padding:10px 14px">설치</button></div>
           <div class="item"><div><b>로그아웃</b><p>이 기기에서 로그아웃합니다. 닉네임과 비밀번호로 언제든 다시 들어올 수 있습니다.</p></div><button class="btn" id="logoutBtn" style="padding:10px 14px">로그아웃</button></div>
         </div>
         <div class="stats" id="stats" style="margin-top:14px"></div>
@@ -393,6 +403,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
     <label id="introRow" hidden>한마디 (선택, 주인이 누군지 알아보게)<input id="intro" maxlength="40" placeholder="예: 우진 친구 민수"></label>
     <div class="err" id="gateErr" role="alert"></div>
     <button class="btn hot" type="submit" id="gateGo" style="font-size:20px">들어가기</button>
+    <button class="appdl big" type="button" data-install hidden>📲 앱으로 설치하기 (아이폰·안드로이드)</button>
   </form>
   <div id="waitBox" hidden style="width:min(380px,100%);background:var(--soot);border:1px solid var(--ash);border-radius:20px;padding:22px;display:grid;gap:12px">
     <h2 style="font-family:var(--f-display);font-weight:400;font-size:26px;margin:0">승인 기다리는 중</h2>
@@ -400,6 +411,14 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
     <div class="row2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><button class="btn" type="button" id="waitOut">다른 계정</button><button class="btn hot" type="button" id="waitCheck" style="font-size:18px">다시 확인</button></div>
   </div>
 </div>
+<div class="gate" id="installBox" hidden><div class="isheet">
+  <h2>📲 앱 설치</h2>
+  <div class="os" role="group" aria-label="기기"><button type="button" id="osIos" aria-pressed="false">아이폰</button><button type="button" id="osAnd" aria-pressed="false">안드로이드</button><button type="button" id="osPc" aria-pressed="false">PC</button></div>
+  <ol id="installSteps"></ol>
+  <p id="installNote" style="margin:0;color:var(--dim);font-size:13px"></p>
+  <button class="btn hot" type="button" id="installGo" style="font-size:18px" hidden>설치하기</button>
+  <button class="btn" type="button" id="installClose">닫기</button>
+</div></div>
 <div class="livebar" id="livebar" hidden><span><span class="dot"></span><b>LIVE</b></span><span class="res" id="lbRes"></span><span class="txt" id="lbTxt"></span></div>
 <canvas id="fxAll" aria-hidden="true"></canvas><div class="flash" id="flash"></div>
 <div class="gate" id="bragBox" hidden><div class="bragwrap"><p class="bh">이미지를 <b>길게 눌러</b> 저장하거나 공유해서 카톡방에 보내세요.</p><img id="bragImg" alt="내 검 자랑 카드"><button class="btn hot" type="button" id="bragShare" style="font-size:17px">① 사진 보내기</button><button class="btn hot" type="button" id="bragLink" style="font-size:17px;background:linear-gradient(180deg,#fee500,#e6cf00);color:#1d1600">② 자랑 문구 + 게임 링크 보내기</button><p class="bh" id="bragTip">사진을 보낸 뒤 ②로 설명 문구와 게임 링크를 이어서 보내세요. 링크는 카톡에서 미리보기 카드로 보입니다.</p><button class="btn" type="button" id="bragClose">닫기</button></div></div>
@@ -927,5 +946,36 @@ document.querySelectorAll("#cheers button").forEach(b=>b.onclick=async()=>{if(!S
   setInterval(()=>{if(document.visibilityState==="visible"&&ST)refreshBoard()},20000)})();
 </script>
 <script>if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));</script>
+<script>
+(function(){
+  const ua=navigator.userAgent||"",IOS=/iPhone|iPad|iPod/i.test(ua)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1),AND=/Android/i.test(ua);
+  const KAKAO=/KAKAOTALK/i.test(ua),INAPP=KAKAO||/Instagram|FBAN|FBAV|NAVER|Line\/|DaumApps|everytimeApp/i.test(ua);
+  const standalone=()=>matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+  const URL0=location.origin+location.pathname;let deferred=null;
+  const say=t=>{try{toast(t)}catch(e){}};
+  const show=on=>document.querySelectorAll("[data-install],[data-installrow]").forEach(e=>e.hidden=!on);
+  show(!standalone());
+  addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferred=e});
+  addEventListener("appinstalled",()=>{deferred=null;show(false);$("installBox").hidden=true;say("설치 완료! 홈 화면의 검키우기 아이콘으로 들어오세요")});
+  const STEPS={
+    ios:["주소창 옆 <span class='k'>공유</span> 버튼(네모에 위쪽 화살표)을 누릅니다.","목록을 내려 <span class='k'>홈 화면에 추가</span>를 누릅니다.","오른쪽 위 <span class='k'>추가</span>를 누르면 홈 화면에 검키우기 아이콘이 생깁니다."],
+    and:["크롬 오른쪽 위 <span class='k'>⋮</span> 메뉴를 누릅니다.","<span class='k'>앱 설치</span> 또는 <span class='k'>홈 화면에 추가</span>를 누릅니다.","<span class='k'>설치</span>를 누르면 앱 목록과 홈 화면에 검키우기가 생깁니다."],
+    pc:["크롬·엣지 주소창 오른쪽의 <span class='k'>설치</span> 아이콘을 누릅니다.","없으면 <span class='k'>⋮</span> 메뉴 → <span class='k'>검키우기 대장간 설치</span>를 누릅니다."]};
+  const NOTE={ios:"사파리에서 하세요. 아이폰 크롬도 같은 공유 버튼에 '홈 화면에 추가'가 있습니다(iOS 16.4 이상).",and:"삼성 인터넷은 ☰ 메뉴 → '현재 페이지 추가' → '홈 화면'입니다.",pc:""};
+  function pick(os){["Ios","And","Pc"].forEach(k=>$("os"+k).setAttribute("aria-pressed",String(k.toLowerCase()===os)));
+    $("installSteps").innerHTML=STEPS[os].map(t=>"<li>"+t+"</li>").join("");$("installNote").textContent=NOTE[os]||"";
+    $("installGo").hidden=!(deferred&&os!=="ios")}
+  async function prompt(){if(!deferred)return;deferred.prompt();try{const c=await deferred.userChoice;if(c.outcome==="accepted")show(false)}catch(e){}deferred=null;$("installGo").hidden=true}
+  $("osIos").onclick=()=>pick("ios");$("osAnd").onclick=()=>pick("and");$("osPc").onclick=()=>pick("pc");
+  $("installClose").onclick=()=>$("installBox").hidden=true;$("installGo").onclick=prompt;
+  function install(){
+    if(KAKAO){location.href="kakaotalk://web/openExternal?url="+encodeURIComponent(URL0);say("기본 브라우저로 여는 중… 열리면 다시 「앱 설치」를 누르세요");return}
+    if(INAPP&&AND){location.href="intent://"+URL0.replace(/^https?:\/\//,"")+"#Intent;scheme=https;package=com.android.chrome;end";return}
+    if(deferred&&!IOS){prompt();return}
+    $("installBox").hidden=false;pick(IOS?"ios":AND?"and":"pc");
+    if(INAPP)$("installNote").textContent="지금은 앱 안의 브라우저라 설치가 안 될 수 있습니다. 메뉴에서 'Safari로 열기' 또는 '다른 브라우저로 열기'를 먼저 누르세요."}
+  document.addEventListener("click",e=>{if(e.target.closest("[data-install]")){e.preventDefault();install()}});
+})();
+</script>
 </body>
 </html>
