@@ -242,6 +242,21 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
 .dexdetail li .tx{min-width:0}.dexdetail li small{display:block;color:var(--dim);font-size:11px}
 .dexdetail li.lock{color:var(--dim)}
 .rank{cursor:pointer}
+
+.badge{display:inline-block;min-width:18px;height:18px;line-height:18px;border-radius:9px;background:var(--bad);color:#fff;font-size:11px;margin-left:4px;padding:0 5px;vertical-align:1px}
+.chatpane{display:flex;flex-direction:column;gap:10px;max-height:none}
+.chatlog{display:flex;flex-direction:column;gap:6px;height:340px;overflow-y:auto;padding-right:2px}
+.cm{max-width:85%;padding:7px 11px;border-radius:14px 14px 14px 4px;background:var(--coal);border:1px solid var(--ash);font-size:14px;align-self:flex-start;overflow-wrap:anywhere}
+.cm .who{display:block;font-size:11px;color:var(--dim);margin-bottom:1px}
+.cm.mine{align-self:flex-end;border-radius:14px 14px 4px 14px;background:rgba(255,122,47,.14);border-color:rgba(255,122,47,.45)}
+.cm.sys{align-self:center;max-width:100%;text-align:center;background:rgba(242,193,78,.1);border-color:rgba(242,193,78,.5);font-weight:700}
+.chatform{display:grid;grid-template-columns:1fr auto;gap:8px}
+.chatform input{font:inherit;font-size:16px;color:var(--bone);background:var(--coal);border:1px solid var(--ash);border-radius:12px;padding:10px 12px;min-width:0}
+.chatform .btn{padding:10px 16px;font-size:16px}
+.highbar{position:fixed;left:50%;transform:translateX(-50%);top:calc(64px + env(safe-area-inset-top,0px));z-index:36;width:min(520px,calc(100% - 32px));background:linear-gradient(135deg,#3a2a08,#221a15);border:2px solid var(--t4);border-radius:18px;padding:14px 16px;display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;box-shadow:0 10px 40px rgba(255,210,94,.25);animation:say .4s ease-out}
+.highbar .mini{width:56px;height:56px}
+.highbar b{display:block;color:var(--t4);font-family:var(--f-display);font-weight:400;font-size:20px}
+.highbar span{font-size:14px}
 </style>
 </head>
 <body>
@@ -278,12 +293,12 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
       <div class="smith" id="smith"><b>괴짜 대장장이</b><span id="smithTxt">어서 와. 오늘도 천재가 망치를 든다.</span></div>
       <div class="tier" id="tier"></div>
     </div>
-    <div class="odds" aria-label="이번 강화 확률">
+    <div class="odds" aria-label="이번 강화 확률" hidden>
       <div><b style="color:var(--ok)" id="pS">-</b><span>성공</span></div>
       <div><b style="color:var(--warn)" id="pK">-</b><span>유지</span></div>
       <div><b style="color:var(--bad)" id="pD">-</b><span>파괴</span></div>
     </div>
-    <div class="bar" aria-hidden="true"><i id="bS" style="background:var(--ok)"></i><i id="bK" style="background:var(--warn)"></i><i id="bD" style="background:var(--bad)"></i></div>
+    <div class="bar" aria-hidden="true" hidden><i id="bS" style="background:var(--ok)"></i><i id="bK" style="background:var(--warn)"></i><i id="bD" style="background:var(--bad)"></i></div>
     <div class="result" id="result" role="status" aria-live="polite"></div>
     <div class="bankrupt" id="bankruptBox" hidden><div><b>파산했습니다</b><span id="bkText"></span></div><button class="btn hot" type="button" id="bkBtn">10만 G 받기</button></div>
     <div class="opts">
@@ -305,6 +320,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
       <div class="tabs" role="tablist">
         <button role="tab" aria-selected="true" data-tab="log">내 기록</button>
         <button role="tab" aria-selected="false" data-tab="live"><span class="live-dot" id="liveDot" hidden></span>공개 강화장</button>
+        <button role="tab" aria-selected="false" data-tab="chat">채팅<span class="badge" id="chatBadge" hidden>0</span></button>
         <button role="tab" aria-selected="false" data-tab="feed">소식</button>
         <button role="tab" aria-selected="false" data-tab="arena">배틀</button>
         <button role="tab" aria-selected="false" data-tab="rank">랭킹</button>
@@ -321,6 +337,8 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
         <div class="chat" id="liveLog"></div>
       </div>
       <div class="pane" id="p-admin" hidden><div id="adminBox"></div></div>
+      <div class="pane chatpane" id="p-chat" hidden><div class="chatlog" id="chatLog"><p class="empty">아직 대화가 없습니다. 먼저 인사해 보세요.</p></div>
+        <form class="chatform" id="chatForm" autocomplete="off"><input id="chatInput" maxlength="120" placeholder="메시지 입력 (최대 120자)" aria-label="채팅 메시지" enterkeyhint="send"><button class="btn hot" type="submit" id="chatSend">보내기</button></form></div>
       <div class="pane" id="p-feed" hidden><div class="chat" id="feed"></div></div>
       <div class="pane" id="p-arena" hidden><p class="note" id="battleLeft" style="margin:0 0 6px"></p><div id="foes"></div><p class="note">상대는 다른 플레이어의 지금 검입니다. 이기면 상금을 받고, 지면 참가비가 상대에게 갑니다. 진 쪽 검은 강화 단계가 1 떨어집니다. 하루 10번까지 도전할 수 있습니다.</p></div>
       <div class="pane" id="p-rank" hidden><div id="ranking"></div></div>
@@ -360,6 +378,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
 <canvas id="fxAll" aria-hidden="true"></canvas><div class="flash" id="flash"></div>
 <div class="gate" id="bragBox" hidden><div class="bragwrap"><p class="bh">이미지를 <b>길게 눌러</b> 저장하거나 공유해서 카톡방에 보내세요.</p><img id="bragImg" alt="내 검 자랑 카드"><button class="btn hot" type="button" id="bragShare" style="font-size:17px">① 사진 보내기</button><button class="btn hot" type="button" id="bragLink" style="font-size:17px;background:linear-gradient(180deg,#fee500,#e6cf00);color:#1d1600">② 자랑 문구 + 게임 링크 보내기</button><p class="bh" id="bragTip">사진을 보낸 뒤 ②로 설명 문구와 게임 링크를 이어서 보내세요. 링크는 카톡에서 미리보기 카드로 보입니다.</p><button class="btn" type="button" id="bragClose">닫기</button></div></div>
 <div class="gate" id="othersDex" hidden><div class="bragwrap" style="width:min(640px,100%)"><div class="panel" style="padding:14px" id="othersBody"></div><button class="btn" type="button" id="othersClose">닫기</button></div></div>
+<div class="highbar" id="highbar" hidden><span class="mini" id="highArt"></span><div><b id="highTitle">고강 성공!</b><span id="highText"></span></div></div>
 <div class="toast" id="toast"></div>
 <script>
 // 앱으로 옮길 때: 아래에 배포 URL(.../exec)을 넣으면 google.script.run 대신 fetch 로 같은 서버를 부릅니다.
@@ -495,7 +514,7 @@ function doSell(){if(!ST||!ST.lv||BUSY)return;
   sellArmed=0;$("sellBtn").classList.remove("arm");act("sell")}
 async function refreshBoard(){try{const b=await call("board");if(b&&b.ok){BOARD=b;renderBoard()}}catch(e){}}
 
-function showTab(t){document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));["log","live","feed","arena","rank","shop","dex","admin"].forEach(x=>$("p-"+x).hidden=x!==t);if(["feed","arena","rank"].includes(t))refreshBoard();if(t==="admin")loadAdmin();if(t==="live"){$("livebar").hidden=true;enterChannel()}else leaveChannel()}
+function showTab(t){document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));["log","live","chat","feed","arena","rank","shop","dex","admin"].forEach(x=>$("p-"+x).hidden=x!==t);if(t==="chat"){UNREAD=0;updBadge();const cl=$("chatLog");cl.scrollTop=cl.scrollHeight}if(["feed","arena","rank"].includes(t))refreshBoard();if(t==="admin")loadAdmin();if(t==="live"){$("livebar").hidden=true;enterChannel()}else leaveChannel()}
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 
 // ── 괴짜 대장장이 대사 ── {name} 검 이름, {desc} 검 설명, {lv} 단계, {prev} 이전 단계, {nick} 플레이어
@@ -792,7 +811,7 @@ function renderMyPublic(){const box=$("myPublic");if(!box||!ST||!META)return;box
   if(ST.lv<PUBLIC_MIN){d.innerHTML=`<p>공개 강화는 <b style="color:var(--bone)">+${PUBLIC_MIN} 이상</b> 검만 할 수 있습니다. 지금 내 검은 +${ST.lv}입니다. 대장간에서 키워서 오세요.</p>`;box.append(d);return}
   if(ST.lv>=META.max){d.innerHTML="<p>이미 최고 단계입니다.</p>";box.append(d);return}
   const [s,dd]=META.odds[ST.lv];
-  d.innerHTML=`<p>내 검 +${ST.lv} <span></span> · 성공 ${s}% / 파괴 ${dd}% · 지켜보는 사람 앞에서 강화합니다.</p><button class="btn hot" type="button">공개 강화<small>${Number(ST.cost).toLocaleString("ko-KR")} G</small></button><p>파괴 방지권 사용은 대장간의 체크를 따릅니다 (남은 방지권 ${ST.scrolls}장).</p>`;
+  d.innerHTML=`<p>내 검 +${ST.lv} <span></span> · 지켜보는 사람 앞에서 강화합니다.</p><button class="btn hot" type="button">공개 강화<small>${Number(ST.cost).toLocaleString("ko-KR")} G</small></button><p>파괴 방지권 사용은 대장간의 체크를 따릅니다 (남은 방지권 ${ST.scrolls}장).</p>`;
   d.querySelector("span").textContent=ST.name;
   const b=d.querySelector("button");b.disabled=BUSY;b.onclick=()=>act("enhance",{useScroll:$("useScroll").checked,public:true});box.append(d)}
 async function sendWatch(leave){try{const r=await call("watch",{leave:!!leave});if(r&&r.ok)showWatchers(r.watchers)}catch(e){}}
@@ -801,16 +820,33 @@ function enterChannel(){if(inChannel||!ST)return;inChannel=true;sendWatch();watc
 function leaveChannel(){if(!inChannel)return;inChannel=false;clearInterval(watchTimer);sendWatch(true)}
 addEventListener("pagehide",()=>{if(inChannel)sendWatch(true)});
 function startLive(){if(liveTimer)return;pollLive();liveTimer=setInterval(()=>{if(document.visibilityState==="visible")pollLive()},2500)}
-async function pollLive(){try{const r=await call("live",{since:Math.max(LSEQ,0)});if(!r||!r.ok)return;
+async function pollLive(){try{const r=await call("live",{since:Math.max(LSEQ,0),chatSince:Math.max(CSEQ,0)});if(!r||!r.ok)return;handleChat(r);
   const first=LSEQ<0;LSEQ=r.seq;if(r.min)PUBLIC_MIN=r.min;if(inChannel&&r.watchers)showWatchers(r.watchers);
   r.ev.forEach(e=>{addLiveLog(e);if(!first)showLive(e)});
   if(first){const last=r.ev.filter(e=>e.type==="enh").pop();if(last)paintStage(last,true)}}catch(e){}}
-function addLiveLog(e){const box=$("liveLog"),d=document.createElement("div");d.className="msg"+(e.type==="enh"?(e.result==="destroy"?" bad":e.result==="success"||e.result==="hidden"?" ok":""):"");
+let CSEQ=-1,UNREAD=0;
+function updBadge(){const b=$("chatBadge");b.hidden=!UNREAD;b.textContent=UNREAD>99?"99+":UNREAD}
+function handleChat(r){if(!r.chat)return;const first=CSEQ<0;if(r.chatSeq!=null&&r.chatSeq<CSEQ){CSEQ=-1;$("chatLog").innerHTML=""}
+  const box=$("chatLog");if(r.chat.length){const em=box.querySelector(".empty");if(em)em.remove()}
+  const atBottom=box.scrollHeight-box.scrollTop-box.clientHeight<60;
+  r.chat.forEach(m=>{const d=document.createElement("div");const mine=ST&&m.id===ST.id;d.className="cm"+(m.sys?" sys":mine?" mine":"");
+    if(!m.sys){const w=document.createElement("span");w.className="who";w.textContent=(mine?"나":m.nick)+" · "+new Date(m.ts).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});d.append(w)}
+    d.append(document.createTextNode(m.text));box.append(d);if(!first&&!mine&&$("p-chat").hidden)UNREAD++});
+  while(box.children.length>120)box.firstChild.remove();
+  if(r.chatSeq!=null)CSEQ=r.chatSeq;updBadge();if(atBottom||first)box.scrollTop=box.scrollHeight}
+$("chatForm").onsubmit=async e=>{e.preventDefault();const i=$("chatInput"),t=i.value.trim();if(!t||!ST)return;$("chatSend").disabled=true;
+  try{const q=await call("chat",{text:t});if(!q.ok){toast(q.error);return}i.value="";await pollLive()}catch(x){toast("보내지 못했습니다")}finally{$("chatSend").disabled=false;i.focus()}};
+$("chatInput").addEventListener("focus",()=>setTimeout(()=>$("chatInput").scrollIntoView({block:"center",behavior:"smooth"}),300));
+function showHigh(e){const hb=$("highbar");$("highTitle").textContent=`🎉 고강 성공! +${e.lv}`;$("highText").textContent=`${e.nick}님이 ${e.name}을(를) 띄웠습니다!`;
+  const a=$("highArt");if(e.line!=null)setArt(a,e.line,e.lv);hb.hidden=false;clearTimeout(showHigh.h);showHigh.h=setTimeout(()=>hb.hidden=true,6000);
+  if(!(ST&&e.id===ST.id)){fxSuccess(e.lv>=20?5:e.lv>=15?4:3,css("--t4"),true);sfx("success",e.lv>=20?5:4)}}
+$("highbar").onclick=()=>{$("highbar").hidden=true;showTab("chat")};
+function addLiveLog(e){if(e.type==="high")return;const box=$("liveLog"),d=document.createElement("div");d.className="msg"+(e.type==="enh"?(e.result==="destroy"?" bad":e.result==="success"||e.result==="hidden"?" ok":""):"");
   const t=document.createElement("span");t.className="t";t.textContent=new Date(e.ts).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
   const txt=e.type==="enh"?`${e.nick} · +${e.before} → +${e.after} ${(RES[e.result]||["",""])[0]} ${e.name}`:`${e.nick} ${e.emoji}`;
   d.append(t,document.createTextNode(txt));box.prepend(d);while(box.children.length>40)box.lastChild.remove()}
 function paintStage(e,instant){lastLive=e;const st=$("liveStage");const [rt,rc]=RES[e.result]||["",""];
-  st.querySelector(".who2").textContent=`${e.nick}님의 공개 강화 · 성공 ${e.odds[0]}% / 파괴 ${e.odds[1]}%`;
+  st.querySelector(".who2").textContent=`${e.nick}님의 공개 강화`;
   const big=st.querySelector(".big"),nm=st.querySelector(".nm"),rs=st.querySelector(".rs");
   const la=$("liveArt");const showArt=(line,lv)=>{if(line!=null&&lv>0){la.hidden=false;setArt(la,line,lv)}else la.hidden=true};
   if(instant){showArt(e.line,e.after);big.textContent="+"+e.after;nm.textContent=e.name;rs.textContent=rt;rs.style.color=rc;return}
@@ -818,6 +854,7 @@ function paintStage(e,instant){lastLive=e;const st=$("liveStage");const [rt,rc]=
   if(inChannel)sfx("drum");big.textContent="+"+e.before;nm.textContent=e.beforeName;rs.textContent="두구두구…";rs.style.color="var(--dim)";
   $("liveQuote").textContent="";setTimeout(()=>{try{const lq=quipFor(e.result,e.after,e.before,e.name,descOf(e.after,e.line),e.beforeName,descOf(e.before,e.beforeLine));$("liveQuote").textContent=lq?"대장장이: "+lq:""}catch(x){}if(inChannel&&!(ST&&e.id===ST.id)){const tn=e.after>=20?5:e.after>=15?4:e.after>=10?3:e.after>=5?2:1;if(e.result==="success"||e.result==="hidden")sfx("success",tn);else if(e.result==="destroy")sfx("destroy",tn);else if(e.result==="saved")sfx("shield");else sfx("keep",tn)}big.textContent="+"+e.after;nm.textContent=e.name;rs.textContent=rt;rs.style.color=rc;big.classList.remove("pop","shake");void big.offsetWidth;big.classList.add(e.result==="success"||e.result==="hidden"?"pop":"shake")},1200)}
 function showLive(e){
+  if(e.type==="high"){showHigh(e);return}
   if(e.type==="cheer"){floatEmoji(e.emoji);if(ST&&e.to===ST.id&&e.id!==ST.id)toast(`${e.nick}님이 응원합니다 ${e.emoji}`);return}
   paintStage(e,false);$("liveDot").hidden=false;setTimeout(()=>$("liveDot").hidden=true,8000);
   if(ST&&e.id===ST.id)return;
