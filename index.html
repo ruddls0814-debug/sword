@@ -710,9 +710,25 @@ async function makeBrag(){await loadFonts();const W=900,H=1200,cv2=document.crea
   c.fillStyle=ST.hidden?css("--t4"):"#ff7a2f";c.font="700 34px 'IBM Plex Sans KR',"+KFB+"";c.fillText(`${ST.nickname}의 검${ST.hidden?" · 히든":""} · 최고 +${ST.best}`,W/2,1140);
   return cv2}
 let BRAG=null;
-$("shareBtn").onclick=async()=>{if(!ST)return;try{await document.fonts.ready}catch(e){}
-  const cv2=await makeBrag();$("bragImg").src=cv2.toDataURL("image/png");$("bragBox").hidden=false;
-  BRAG=await new Promise(r=>cv2.toBlob(r,"image/png"))};
+// 카카오 개발자 콘솔의 JavaScript 키 (GitHub 사이트 도메인 등록 필요). 비어 있으면 휴대폰 공유창을 씁니다.
+const KAKAO_KEY = "";
+let KAKAO_P=null;
+function kakaoReady(){if(!KAKAO_KEY||(window.google&&google.script))return Promise.resolve(null);if(KAKAO_P)return KAKAO_P;
+  KAKAO_P=new Promise(res=>{if(window.Kakao){res(window.Kakao);return}const sc=document.createElement("script");sc.src="https://t1.kakaocdn.net/kakao_js_sdk/2.8.4/kakao.min.js";sc.crossOrigin="anonymous";sc.onload=()=>res(window.Kakao||null);sc.onerror=()=>res(null);document.head.append(sc);setTimeout(()=>res(window.Kakao||null),6000)})
+    .then(K=>{try{if(K&&!K.isInitialized())K.init(KAKAO_KEY);return K&&K.isInitialized()?K:null}catch(e){return null}});return KAKAO_P}
+kakaoReady();
+async function shareKakao(K,blob){const f=new File([blob],"sword.png",{type:"image/png"});
+  const up=await K.Share.uploadImage({file:[f]});const img=up&&up.infos&&up.infos.original&&up.infos.original.url;if(!img)throw new Error("upload");
+  const u=gameUrl();
+  K.Share.sendDefault({objectType:"feed",content:{title:`${ST.nickname}의 +${ST.lv} ${ST.name}`,description:`${descOf(ST.lv,ST.line)}\n최고 +${ST.best} · 파괴 ${ST.broke}번${ST.hidden?" · 히든!":""}`,imageUrl:img,imageWidth:900,imageHeight:1200,link:{mobileWebUrl:u,webUrl:u}},
+    buttons:[{title:"나도 검 키우러 가기",link:{mobileWebUrl:u,webUrl:u}}]})}
+$("shareBtn").onclick=async()=>{if(!ST)return;const btn=$("shareBtn");btn.disabled=true;const old=btn.textContent;btn.textContent="자랑 카드 만드는 중…";
+  try{try{await document.fonts.ready}catch(e){}const cv2=await makeBrag();BRAG=await new Promise(r=>cv2.toBlob(r,"image/png"));const t=bragText();
+    const K=await kakaoReady();
+    if(K){try{await shareKakao(K,BRAG);return}catch(e){}}
+    try{const f=new File([BRAG],"my-sword.png",{type:"image/png"});if(navigator.canShare&&navigator.canShare({files:[f]})){copyText(t);await navigator.share({files:[f],title:"검키우기 대장간",text:t});return}}catch(e){if(e&&e.name==="AbortError")return}
+    $("bragImg").src=cv2.toDataURL("image/png");$("bragBox").hidden=false}
+  finally{btn.disabled=false;btn.textContent=old}};
 $("othersClose").onclick=()=>{$("othersDex").hidden=true};
 $("bragClose").onclick=()=>{$("bragBox").hidden=true};
 async function copyText(t){try{await navigator.clipboard.writeText(t);return true}catch(e){return false}}
