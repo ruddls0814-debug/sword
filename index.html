@@ -407,7 +407,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
         <div class="chatlog" id="chatLog"><p class="empty">아직 대화가 없습니다. 먼저 인사해 보세요.</p></div>
         <form class="chatform" id="chatForm" autocomplete="off"><input id="chatInput" maxlength="120" placeholder="메시지 입력 (최대 120자)" aria-label="채팅 메시지" enterkeyhint="send"><button class="btn hot" type="submit" id="chatSend">보내기</button></form></div>
       <div class="pane" id="p-feed" hidden><div class="chat" id="feed"></div></div>
-      <div class="pane" id="p-arena" hidden><p class="note" id="battleLeft" style="margin:0 0 6px"></p><div id="foes"></div><p class="note">상대는 다른 플레이어의 지금 검입니다. 이기면 상금을 받고, 지면 참가비가 상대에게 갑니다. 진 쪽 검은 강화 단계가 1 떨어집니다. 하루 10번까지 도전할 수 있습니다.</p><p class="note"><b>상성</b> · 불 → 쇠 → 자연 → 땅 → 물 → 불 순서로 앞이 뒤를 이깁니다. 빛과 어둠은 서로 상극이라 먼저 도전한 쪽이 유리합니다. 유리하면 강화 단계 +2만큼, 불리하면 -2만큼 세게 싸웁니다. 히든 우진은 매번 예측 불가!</p></div>
+      <div class="pane" id="p-arena" hidden><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 6px"><p class="note" id="battleLeft" style="margin:0"></p><button class="btn" type="button" id="foeRefresh" style="padding:8px 12px;font-size:14px;white-space:nowrap">🔄 새로고침</button></div><div id="foes"></div><p class="note">상대는 다른 플레이어의 지금 검입니다. 이기면 상금을 받고, 지면 참가비가 상대에게 갑니다. 진 쪽 검은 확률로 강화 단계가 1 떨어집니다(높은 단계일수록 잘 버팁니다). 하루 10번까지 도전할 수 있습니다.</p><p class="note"><b>상성</b> · 불 → 쇠 → 자연 → 땅 → 물 → 불 순서로 앞이 뒤를 이깁니다. 빛과 어둠은 서로 상극이라 먼저 도전한 쪽이 유리합니다. 유리하면 강화 단계 +2만큼, 불리하면 -2만큼 세게 싸웁니다. 히든 우진은 매번 예측 불가!</p></div>
       <div class="pane" id="p-rank" hidden><div id="ranking"></div></div>
       <div class="pane" id="p-shop" hidden>
         <div class="shop">
@@ -640,6 +640,9 @@ function doSell(){if(!ST||!ST.lv||BUSY)return;
   if(ST.lv>=8&&Date.now()>sellArmed){sellArmed=Date.now()+2500;$("sellBtn").classList.add("arm");$("sellPrice").textContent="한 번 더 누르면 판매";setTimeout(()=>{$("sellBtn").classList.remove("arm");render()},2500);return}
   sellArmed=0;$("sellBtn").classList.remove("arm");act("sell")}
 async function refreshBoard(){try{const b=await call("board");if(b&&b.ok){BOARD=b;renderBoard()}}catch(e){}}
+// 배틀 탭 새로고침: 누르면 상대 목록을 다시 불러오고 3초 동안 다시 못 누름
+$("foeRefresh").onclick=async()=>{const b=$("foeRefresh");if(b.disabled)return;b.disabled=true;b.textContent="불러오는 중…";
+  await refreshBoard();let n=3;const tick=()=>{if(n<=0){b.disabled=false;b.textContent="🔄 새로고침";return}b.textContent="🔄 "+n+"초";n--;setTimeout(tick,1000)};tick()};
 
 function showTab(t){document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));["log","live","chat","feed","arena","rank","shop","dex","admin"].forEach(x=>$("p-"+x).hidden=x!==t);if(t==="chat"){UNREAD=0;updBadge();const cl=$("chatLog");cl.scrollTop=cl.scrollHeight}if(["feed","arena","rank"].includes(t))refreshBoard();if(t==="admin")loadAdmin();if(t==="live"){$("livebar").hidden=true;enterChannel()}else leaveChannel()}
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
@@ -1073,7 +1076,7 @@ document.querySelectorAll("#cheers button").forEach(b=>b.onclick=async()=>{if(!S
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794325443;
+const BUILD=1794326253;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
