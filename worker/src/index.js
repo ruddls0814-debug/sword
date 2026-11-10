@@ -363,7 +363,7 @@ function say_(st, out, text, kind) {
 function api(action, req) {
   req = req || {};
   try {
-    if (action === 'bootstrap') return {ok:true, types:TYPE_OF, beats:BEATS, protectMax:PROTECT_MAX, lines:LINES.map(l=>({n:l.n,h:l.h,t:TYPE_OF[l.n]||'',names:l.names,desc:DESC[l.n]||[]})), baseDesc:BASE_DESC, odds:ODDS, base:BASE, max:MAX, url:(function(){try{return ScriptApp.getService().getUrl()}catch(e){return ''}})()};
+    if (action === 'bootstrap') return {ok:true, dungeons:DUNGEONS, huntCapH:HUNT_CAP_H, buffs:BUFFS.map(b=>({key:b[0],name:b[1],n:b[2],desc:b[4]})), guardMax:GUARD_MAX, types:TYPE_OF, beats:BEATS, protectMax:PROTECT_MAX, lines:LINES.map(l=>({n:l.n,h:l.h,t:TYPE_OF[l.n]||'',names:l.names,desc:DESC[l.n]||[]})), baseDesc:BASE_DESC, odds:ODDS, base:BASE, max:MAX, url:(function(){try{return ScriptApp.getService().getUrl()}catch(e){return ''}})()};
     if (action === 'register') return register_(req);
     if (action === 'login') return login_(req);
     if (action === 'board') return board_(req);
@@ -416,18 +416,20 @@ function api(action, req) {
       if (['pending','approve','reject','give','roster','setApproval'].indexOf(action) >= 0) return admin_(action, req, row);
       const st = migrate_(Object.assign(fresh_(), JSON.parse(row.state||'{}')));
       const out = {msgs:[], fx:null};
-      const fn = {me:()=>{}, enhance:enhance_, sell:sell_, buyScroll:buyScroll_, aid:aid_, battle:battle_, cheer:cheer_}[action];
+      const fn = {me:()=>{}, enhance:enhance_, sell:sell_, buyScroll:buyScroll_, aid:aid_, battle:battle_, cheer:cheer_, huntSet:huntSet_, huntStop:huntStop_, huntClaim:huntClaim_}[action];
+      if (fn && action !== 'cheer') settle_(st, out);
       if (!fn) return {ok:false, error:'알 수 없는 요청: '+action};
       const err = fn(st, req, out, row);
-      if (err) return {ok:false, error:err, state:pub_(st, row)};
-      if (action !== 'cheer') save_(row, st);
-      return {ok:true, state:pub_(st, row), msgs:out.msgs, fx:out.fx, battle:out.battle||null};
+      if (err) { if (out.goblins) save_(row, st); return {ok:false, error:err, state:pub_(st, row), goblins:out.goblins||null}; }
+      if (action !== 'cheer') { fitHunt_(st, out); save_(row, st); }
+      return {ok:true, state:pub_(st, row), msgs:out.msgs, fx:out.fx, battle:out.battle||null, goblins:out.goblins||null};
     } finally { lock.releaseLock(); }
   } catch (e) { return {ok:false, error:String(e && e.message || e)}; }
 }
 function pub_(st, row) {
   const dl = daily_(st);
-  return Object.assign({}, st, {protectCost:protectCost(st), protectOk:st.lv < PROTECT_MAX, type:typeOf(st.line), aidLeft:AID_PER_DAY-dl.aid, battlesLeft:BATTLE_PER_DAY-dl.battles, bankrupt:bankrupt_(st), aidGold:AID_GOLD, nickname:row.nickname, id:row.id, role:row.role, name:nameOf(st.lv, st.line), cost:st.lv>=MAX?null:cost(st.lv), sell:sellOf(st.lv, st.line), scrollPrice:scrollPrice(st.lv), hidden:isHidden(st.line), lineName:st.line==null?null:LINES[st.line].n});
+  hunt_(st);
+  return Object.assign({}, st, {now:Date.now(), huntGph:st.hunt.d>=0?huntGph(st.hunt.d):0, huntCap:st.hunt.d>=0?huntGph(st.hunt.d)*HUNT_CAP_H:0, protectCost:protectCost(st), protectOk:st.lv < PROTECT_MAX, type:typeOf(st.line), aidLeft:AID_PER_DAY-dl.aid, battlesLeft:BATTLE_PER_DAY-dl.battles, bankrupt:bankrupt_(st), aidGold:AID_GOLD, nickname:row.nickname, id:row.id, role:row.role, name:nameOf(st.lv, st.line), cost:st.lv>=MAX?null:cost(st.lv), sell:sellOf(st.lv, st.line), scrollPrice:scrollPrice(st.lv), hidden:isHidden(st.line), lineName:st.line==null?null:LINES[st.line].n});
 }
 
 // ── 계정 ──────────────────────────────────────────────────
@@ -506,13 +508,17 @@ function pickLine_() {
 function enhance_(st, req, out, row) {
   if (st.lv >= MAX) return '이미 최고 단계입니다';
   if (req.public && st.lv < PUBLIC_MIN) return `공개 강화는 +${PUBLIC_MIN} 검부터 할 수 있습니다`;
-  const c = cost(st.lv), prot = !!req.useScroll;
+  hunt_(st); const B = st.buffs;
+  const useFree = (B.free||0) > 0, useLuck = (B.luck||0) > 0, useGuard = (B.guard||0) > 0 && st.lv < GUARD_MAX;
+  const c = useFree ? 0 : cost(st.lv), prot = !!req.useScroll && !useGuard;
   if (prot && st.lv >= PROTECT_MAX) return `+${PROTECT_MAX}부터는 파괴 방지를 쓸 수 없습니다`;
   const pc = prot ? protectCost(st) : 0;
   if (st.gold < c + pc) return prot ? `골드가 부족합니다 (강화비 ${fmt(c)} G + 파괴 방지 ${fmt(pc)} G)` : '골드가 부족합니다';
   st.gold -= c + pc; st.tries++;
+  if (useFree) B.free--; if (useLuck) B.luck--; if (useGuard) B.guard--;
   const before = st.lv, beforeName = nameOf(st.lv, st.line), beforeLine = st.line;
-  const [s,d] = ODDS[st.lv], r = Math.random()*100;
+  let [s,d] = ODDS[st.lv]; if (useLuck) s = Math.min(100 - d, s + 5);
+  const r = Math.random()*100;
   if (r < s) {
     if (st.lv === 0) {
       st.line = pickLine_(); const L = LINES[st.line];
@@ -531,7 +537,8 @@ function enhance_(st, req, out, row) {
     }
     out.fx = out.fx || 'success';
   } else if (r < s+d) {
-    if (prot) { say_(st,out,`파괴될 뻔했지만 파괴 방지(${fmt(pc)} G)로 +${st.lv} 유지`,'gold'); out.fx='saved'; }
+    if (useGuard) { say_(st,out,`파괴될 뻔했지만 황금 방패가 막았습니다. +${st.lv} 유지 (남은 ${B.guard}회)`,'gold'); out.fx='saved'; }
+    else if (prot) { say_(st,out,`파괴될 뻔했지만 파괴 방지(${fmt(pc)} G)로 +${st.lv} 유지`,'gold'); out.fx='saved'; }
     else {
       const was = st.lv, nm = nameOf(st.lv,st.line);
       st.lv = 0; st.line = null; st.broke++;
@@ -541,6 +548,81 @@ function enhance_(st, req, out, row) {
     }
   } else { say_(st,out,`강화 실패. +${st.lv} 그대로입니다.`); out.fx='keep'; }
   if (req.public) livePush_({type:'enh', id:row.id, nick:row.nickname, before, beforeName, beforeLine, line:st.line, after:st.lv, name:nameOf(st.lv, st.line), hidden:isHidden(st.line), result:out.fx, odds:ODDS[before]});
+}
+
+// ── 자동 사냥 (던전 10단계) ─────────────────────────────────
+// [이름, 바위, 필요 강화 단계, 시간당 골드]
+// 시간당 골드는 그 던전에 들어갈 수 있는 단계의 강화비·판매가에 맞춰 잡았습니다.
+// 예) 5층(+9): 한 시간이면 +9 검 판매가(3만)의 약 1.7배, 8층(+15): +15 판매가(330만)를 모으려면 약 12시간.
+const DUNGEONS = [
+  ['조약돌 개울', '조약돌', 1, 3000],
+  ['바위 언덕', '바위', 3, 6000],
+  ['화강암 협곡', '화강암', 5, 12000],
+  ['현무암 동굴', '현무암', 7, 25000],
+  ['흑요석 광산', '흑요석', 9, 50000],
+  ['수정 동굴', '수정 바위', 11, 90000],
+  ['용암 지대', '용암석', 13, 160000],
+  ['운석 분화구', '운석', 15, 280000],
+  ['미스릴 광맥', '미스릴 원석', 17, 450000],
+  ['별의 심연', '별의 핵', 19, 700000]];
+const HUNT_CAP_H = 8;                 // 접속하지 않아도 최대 8시간치까지 주머니에 쌓임
+const GOBLIN_EVERY = 10 * 60 * 1000;  // 사냥 10분마다 한 번
+const GOBLIN_P = 1 / 12;              // 그때 황금고블린이 나올 확률 (평균 2시간에 한 마리)
+const GUARD_MAX = 12;                 // 황금 방패는 +12 미만 강화에서만
+// 황금고블린이 주는 버프 [key, 이름, 횟수, 가중치, 설명]
+const BUFFS = [
+  ['guard', '황금 방패', 15, 30, `+${GUARD_MAX} 미만 강화에서 파괴가 나와도 유지`],
+  ['luck',  '황금 행운', 10, 30, '강화 성공 확률 +5%p'],
+  ['free',  '황금 망치', 10, 25, '강화비 무료'],
+  ['pouch', '황금 주머니', 0, 15, '지금 던전 1시간치 골드를 바로 받음']];
+const huntReq = d => DUNGEONS[d][2];
+const huntGph = d => DUNGEONS[d][3];
+function hunt_(st) { st.hunt = st.hunt || {d:-1, since:0, pouch:0, gt:0}; st.buffs = st.buffs || {}; return st.hunt; }
+function bestDungeon_(lv) { let b = -1; DUNGEONS.forEach((x, i) => { if (lv >= x[2]) b = i; }); return b; }
+// 지난 정산 뒤 흐른 시간만큼 주머니에 골드를 넣고, 10분마다 황금고블린을 굴림
+function settle_(st, out) {
+  const h = hunt_(st), now = Date.now();
+  if (h.d < 0 || !h.since) { h.since = now; h.gt = now; return; }
+  const gph = huntGph(h.d), cap = gph * HUNT_CAP_H, el = Math.max(0, now - h.since);
+  const room = Math.max(0, cap - h.pouch);
+  h.pouch = Math.min(cap, h.pouch + gph * el / 3600000);
+  // 주머니가 가득 찬 뒤의 시간에는 고블린도 나오지 않음
+  const activeMs = gph > 0 ? Math.min(el, room / gph * 3600000) : 0;
+  let blocks = Math.floor((Math.min(now, h.since + activeMs) - (h.gt || h.since)) / GOBLIN_EVERY);
+  blocks = Math.max(0, Math.min(blocks, HUNT_CAP_H * 6));
+  for (let i = 0; i < blocks; i++) if (Math.random() < GOBLIN_P) goblin_(st, out);
+  h.gt = (h.gt || h.since) + blocks * GOBLIN_EVERY;
+  if (h.pouch >= cap) h.gt = now;
+  h.since = now;
+}
+function goblin_(st, out) {
+  const tot = BUFFS.reduce((t, b) => t + b[3], 0); let r = Math.random() * tot, pick = BUFFS[0];
+  for (const b of BUFFS) { if ((r -= b[3]) < 0) { pick = b; break; } }
+  const h = hunt_(st), ev = {key:pick[0], name:pick[1], n:pick[2], desc:pick[4]};
+  if (pick[0] === 'pouch') { const g = huntGph(Math.max(0, h.d)); st.gold += g; ev.gold = g; say_(st, out, `황금고블린을 잡았다! 황금 주머니에서 ${fmt(g)} G가 나왔습니다.`, 'gold'); }
+  else { st.buffs[pick[0]] = (st.buffs[pick[0]] || 0) + pick[2]; say_(st, out, `황금고블린을 잡았다! ${pick[1]} ${pick[2]}회 (${pick[4]})`, 'gold'); }
+  if (out) (out.goblins = out.goblins || []).push(ev);
+}
+// 검 단계가 던전 조건보다 낮아지면 들어갈 수 있는 가장 높은 던전으로 옮김
+function fitHunt_(st, out) {
+  const h = hunt_(st); if (h.d < 0 || st.lv >= huntReq(h.d)) return;
+  const b = bestDungeon_(st.lv), from = DUNGEONS[h.d][0];
+  h.d = b; h.since = Date.now(); h.gt = h.since;
+  if (out) say_(st, out, b < 0 ? `검이 없어 ${from} 사냥을 멈췄습니다. 검을 다시 키워 오세요.` : `검이 약해져 ${from}에서 ${DUNGEONS[b][0]}(으)로 내려왔습니다.`, b < 0 ? 'bad' : '');
+}
+function huntSet_(st, req, out) {
+  const d = Math.floor(+req.d);
+  if (!(d >= 0 && d < DUNGEONS.length)) return '없는 던전입니다';
+  if (st.lv < huntReq(d)) return `${DUNGEONS[d][0]}은(는) +${huntReq(d)} 이상 검이 있어야 들어갈 수 있습니다`;
+  const h = hunt_(st); h.d = d; h.since = Date.now(); h.gt = h.since;
+  say_(st, out, `${d + 1}층 ${DUNGEONS[d][0]}에서 사냥을 시작했습니다. 시간당 ${fmt(huntGph(d))} G`, 'ok'); out.fx = 'hunt';
+}
+function huntStop_(st, req, out) { const h = hunt_(st); if (h.d < 0) return '사냥 중이 아닙니다'; say_(st, out, `${DUNGEONS[h.d][0]} 사냥을 멈췄습니다. 주머니 골드는 그대로 남아 있습니다.`); h.d = -1; }
+function huntClaim_(st, req, out) {
+  const h = hunt_(st), g = Math.floor(h.pouch);
+  if (g < 1) return '주머니가 비어 있습니다';
+  st.gold += g; h.pouch -= g;
+  say_(st, out, `사냥 주머니에서 ${fmt(g)} G를 꺼냈습니다.`, 'gold'); out.fx = 'claim';
 }
 function cheer_(st, req, out, row) {
   const ok = ['👏','🔥','😱','🙏','😂'];
@@ -578,7 +660,7 @@ function battle_(st, req, out, row) {
   if (Date.now() < (st.nextFight||0)) return '숨 고르는 중입니다. 잠시 뒤에 다시 도전하세요';
   const foe = findBy_('id', String(req.targetId||''));
   if (!foe || foe.id === row.id || foe.status !== 'ok') return '상대를 찾을 수 없습니다';
-  const fst = migrate_(Object.assign(fresh_(), JSON.parse(foe.state||'{}')));
+  const fst = migrate_(Object.assign(fresh_(), JSON.parse(foe.state||'{}'))); settle_(fst, null);
   const f = fee(fst.lv), pz = prize(fst.lv);
   if (st.gold < f) return `참가비 ${fmt(f)} G가 필요합니다`;
   const myLv = st.lv, foeLv = fst.lv;
@@ -604,7 +686,7 @@ function battle_(st, req, out, row) {
     feed_(`${foe.nickname}님(+${foeLv})이 ${row.nickname}님(+${myLv})의 도전을 막아 냈습니다.${d ? ` ${row.nickname}님의 검이 +${st.lv}로 떨어졌습니다.` : ''}`);
   }
   if (fst.log.length > 40) fst.log = fst.log.slice(-40);
-  save_(foe, fst);
+  fitHunt_(fst, null); save_(foe, fst);
 }
 function board_(req) {
   const rows = allRows_().filter(r => r.status === 'ok'), me = rows.find(r => r.token === String(req.token||''));
