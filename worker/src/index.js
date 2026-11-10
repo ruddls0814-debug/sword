@@ -351,7 +351,8 @@ function hash_(nick, pin) {
 function fresh_() { return {v:STATE_VER, daily:{}, gold:START_GOLD, lv:0, line:null, best:0, scrolls:0, seen:{}, tries:0, ok:0, broke:0, sold:0, wins:0, losses:0, defWins:0, nextFight:0, log:[]}; }
 function today_() { return Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd'); }
 function daily_(st) { const d = today_(); if (!st.daily || st.daily.date !== d) st.daily = {date:d, aid:0, battles:0}; return st.daily; }
-function bankrupt_(st) { return st.gold + sellOf(st.lv, st.line) < 10; }
+const BANKRUPT_GOLD = 10000;   // 골드 + 지금 검 판매가가 이 금액 이하면 파산
+function bankrupt_(st) { return st.gold + sellOf(st.lv, st.line) <= BANKRUPT_GOLD; }
 function migrate_(st) { if ((st.v||1) < STATE_VER) { st.gold = Math.max(st.gold, START_GOLD); st.v = STATE_VER; } return st; }
 function say_(st, out, text, kind) {
   const t = Utilities.formatDate(new Date(), 'Asia/Seoul', 'HH:mm');
@@ -557,7 +558,7 @@ function sell_(st, req, out, row) {
 function buyScroll_(st, req, out) { return '파괴 방지권 구매는 없어졌습니다. 강화할 때 「파괴 방지」를 체크하면 그때 비용을 냅니다'; }
 function aid_(st, req, out) {
   const dl = daily_(st);
-  if (!bankrupt_(st)) return '파산 지원금은 골드와 검 판매가를 합쳐 10 G 미만일 때만 받을 수 있습니다';
+  if (!bankrupt_(st)) return `파산 지원금은 골드와 검 판매가를 합쳐 ${fmt(BANKRUPT_GOLD)} G 이하일 때만 받을 수 있습니다`;
   if (dl.aid >= AID_PER_DAY) return `오늘 파산 지원금 ${AID_PER_DAY}회를 모두 받았습니다. 내일 다시 받을 수 있습니다`;
   dl.aid++; st.gold += AID_GOLD;
   say_(st,out,`파산 지원금 ${fmt(AID_GOLD)} G를 받았습니다. (오늘 남은 횟수 ${AID_PER_DAY-dl.aid}회)`,'gold');

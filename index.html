@@ -412,7 +412,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
       <div class="pane" id="p-shop" hidden>
         <div class="shop">
           <div class="item"><div><b>파괴 방지</b><p>강화할 때 「파괴 방지」를 체크하면 지금 검 판매가의 1/4을 더 내고, 파괴가 나와도 단계가 유지됩니다. +15부터는 쓸 수 없습니다.</p></div><span id="buyScroll" hidden></span><span id="scrollPrice" hidden></span></div>
-          <div class="item"><div><b>파산 지원금</b><p>골드와 검 판매가를 합쳐 10 G 미만이면 하루 3번까지 10만 G를 받을 수 있습니다.</p></div><button class="btn" id="aidBtn" style="padding:10px 14px">받기<small id="aidLeft">-</small></button></div>
+          <div class="item"><div><b>파산 지원금</b><p>골드와 검 판매가를 합쳐 1만 G 이하이면 하루 3번까지 10만 G를 받을 수 있습니다.</p></div><button class="btn" id="aidBtn" style="padding:10px 14px">받기<small id="aidLeft">-</small></button></div>
           <div class="item" data-installrow hidden><div><b>앱 설치</b><p>홈 화면에 아이콘을 만들어 앱처럼 전체 화면으로 실행합니다. 아이폰·안드로이드 모두 됩니다.</p></div><button class="btn" type="button" data-install style="padding:10px 14px">설치</button></div>
           <div class="item"><div><b>로그아웃</b><p>이 기기에서 로그아웃합니다. 닉네임과 비밀번호로 언제든 다시 들어올 수 있습니다.</p></div><button class="btn" id="logoutBtn" style="padding:10px 14px">로그아웃</button></div>
         </div>
@@ -957,7 +957,7 @@ addEventListener("pagehide",()=>{if(inChannel)sendWatch(true)});
 let LIVE_P=null,LIVE_FAIL=0;
 let WS=null,WS_OK=false,WS_TRY=0;
 function openWS(){if(WS)return;try{WS=new WebSocket(API_URL.replace(/^http/,"ws").replace(/\/+$/,"")+"/ws")}catch(e){WS=null;return}
-  WS.onopen=()=>{WS_OK=true;WS_TRY=0;pollLive()};
+  WS.onopen=()=>{WS_OK=true;WS_TRY=0;pollLive();if(typeof checkPatch==="function")checkPatch()};
   WS.onmessage=e=>{if(e.data==="live")pollLive()};
   WS.onclose=()=>{WS_OK=false;WS=null;setTimeout(openWS,Math.min(30000,1000*Math.pow(2,WS_TRY++)))};
   WS.onerror=()=>{try{WS.close()}catch(e){}}}
@@ -1071,6 +1071,28 @@ document.querySelectorAll("#cheers button").forEach(b=>b.onclick=async()=>{if(!S
     if(INAPP)$("installNote").textContent="지금은 앱 안의 브라우저라 설치가 안 될 수 있습니다. 메뉴에서 'Safari로 열기' 또는 '다른 브라우저로 열기'를 먼저 누르세요."}
   document.addEventListener("click",e=>{if(e.target.closest("[data-install]")){e.preventDefault();install()}});
 })();
+</script>
+<script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
+const BUILD=1794325443;
+try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
+function showPatch(v,reload){if(document.getElementById("patchBox"))return;
+  const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
+  const card=document.createElement("div");card.style.cssText="width:min(400px,100%);background:var(--soot);border:1px solid var(--ember);border-radius:20px;padding:20px;display:grid;gap:12px";
+  const h=document.createElement("h2");h.style.cssText="font-family:var(--f-display);font-weight:400;font-size:26px;margin:0";h.textContent="📢 "+(v.title||"패치 공지");
+  const ul=document.createElement("ul");ul.style.cssText="margin:0;padding-left:20px;display:grid;gap:6px;line-height:1.5";(v.notes||[]).forEach(t=>{const li=document.createElement("li");li.textContent=t;ul.append(li)});
+  const btn=document.createElement("button");btn.type="button";btn.className="btn hot";btn.style.fontSize="18px";
+  card.append(h,ul,btn);box.append(card);document.body.append(box);
+  const mark=()=>{try{localStorage.setItem("patchSeen",String(v.v))}catch(e){}};
+  if(!reload){btn.textContent="확인";btn.onclick=()=>{mark();box.remove()};return}
+  const go=()=>{mark();try{sessionStorage.setItem("reloadFor",String(v.v))}catch(e){}location.replace(location.pathname+"?v="+v.v+location.hash)};
+  btn.onclick=go;let n=5;const tick=()=>{btn.textContent="새 버전으로 새로고침 ("+n+")";
+    if(n<=0){if(typeof BUSY!=="undefined"&&BUSY||document.querySelector(".arena")){setTimeout(tick,500);return}go();return}n--;setTimeout(tick,1000)};tick()}
+async function checkPatch(){try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const v=await r.json();if(!v||!v.v)return;
+  if(v.v>BUILD){let tried=null;try{tried=sessionStorage.getItem("reloadFor")}catch(e){}if(tried===String(v.v))return;showPatch(v,true)}
+  else if(v.v===BUILD){let seen=null,tok=null;try{seen=localStorage.getItem("patchSeen");tok=localStorage.getItem("sword-token")}catch(e){}
+    if(seen===String(BUILD))return;if(!tok){try{localStorage.setItem("patchSeen",String(BUILD))}catch(e){}return}if(v.notes&&v.notes.length)showPatch(v,false)}}catch(e){}}
+setTimeout(checkPatch,3000);setInterval(()=>{if(document.visibilityState==="visible")checkPatch()},60000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkPatch()});
 </script>
 </body>
 </html>
