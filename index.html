@@ -592,15 +592,18 @@ function playBattle(b){return new Promise(done=>{
   at(4000,end);
 })}
 function setBusy(on){BUSY=on;["upBtn","sellBtn","buyScroll","aidBtn"].forEach(i=>$(i).classList.toggle("busy",on));$("upLabel").innerHTML=on?'<span class="hammer">🔨</span>':"강화"}
-async function act(action,data){if(BUSY||!ST)return;setBusy(true);
+const HOLD={keep:220,success:320,saved:700,hidden:1300,destroy:1200,sell:400};
+async function act(action,data,opt){if(BUSY||!ST)return;setBusy(true);opt=opt||{};const t0=Date.now();let hold=0;
   try{const r=await call(action,data);
+    if(opt.minMs){const w=opt.minMs-(Date.now()-t0);if(w>0)await new Promise(z=>setTimeout(z,w))}
     if(!r.ok){if(r.needLogin){showGate();return}result(r.error,"var(--dim)","shake");toast(r.error);if(r.state){ST=r.state;render()}return}
     const before=ST.lv;PREV={name:ST&&ST.name,desc:ST&&descOf(ST.lv,ST.line)};
     if(data&&data.public){LSEQ_SELF=true;await pollLive();setTimeout(()=>{ST=r.state;fx(r.fx,before);render();renderMyPublic();refreshBoard()},1250);return}
     if(r.battle){try{await playBattle(r.battle)}catch(e){}}
-    ST=r.state;fx(r.fx,before);render();refreshBoard()}
+    ST=r.state;fx(r.fx,before);render();if(action!=="enhance")refreshBoard();
+    hold=opt.minMs?(HOLD[r.fx]||300)+((r.fx==="success"&&(ST.lv%5===0))?500:0):0}
   catch(e){result("응답이 늦습니다","var(--dim)","shake");toast("서버 응답이 늦어요. 결과를 다시 불러옵니다");setTimeout(()=>{call("me").then(q=>{if(q&&q.ok){ST=q.state;render()}}).catch(()=>{})},1500)}
-  finally{setBusy(false);renderBoard()}}
+  finally{if(hold){$("upLabel").innerHTML="강화";setTimeout(()=>setBusy(false),hold)}else setBusy(false);renderBoard()}}
 function say(text){const b=$("smith");$("smithTxt").textContent=text;b.classList.remove("say");void b.offsetWidth;b.classList.add("say")}
 let PREV={};
 function quipFor(kind,lv,before,name,desc,prevName,prevDesc){
@@ -614,9 +617,9 @@ function quipFor(kind,lv,before,name,desc,prevName,prevDesc){
   return ""}
 const BOOM_IMGS=["https://ruddls0814-debug.github.io/sword/destroy1.webp","https://ruddls0814-debug.github.io/sword/destroy2.webp"];
 BOOM_IMGS.forEach(u=>{const i=new Image();i.src=u});
-function showBoom(){const b=$("boom");$("boomImg").src=BOOM_IMGS[Math.floor(Math.random()*BOOM_IMGS.length)];b.hidden=false;clearTimeout(showBoom.h);showBoom.h=setTimeout(()=>b.hidden=true,2800)}
+function showBoom(){const b=$("boom");b.onclick=()=>{b.hidden=true;clearTimeout(showBoom.h)};$("boomImg").src=BOOM_IMGS[Math.floor(Math.random()*BOOM_IMGS.length)];b.hidden=false;clearTimeout(showBoom.h);showBoom.h=setTimeout(()=>b.hidden=true,2800)}
 const tierN=l=>l>=20?5:l>=15?4:l>=10?3:l>=5?2:1;
-function fx(kind,before){const qq=quipFor(kind,ST.lv,before,ST.name,descOf(ST.lv,ST.line),PREV.name,PREV.desc);if(qq)say(qq);const lv=ST.lv,tc=ST.hidden?css("--t4"):css(tierOf(Math.max(lv,1)).c);
+function fx(kind,before){if(parts.length>160)parts=parts.slice(-160);if(rings.length>3)rings=rings.slice(-3);const qq=quipFor(kind,ST.lv,before,ST.name,descOf(ST.lv,ST.line),PREV.name,PREV.desc);if(qq)say(qq);const lv=ST.lv,tc=ST.hidden?css("--t4"):css(tierOf(Math.max(lv,1)).c);
   if(kind==="success"){result(`성공! +${lv}`,"var(--ok)","pop");fxSuccess(tierN(lv),tc,lv%5===0);sfx("success",tierN(lv))}
   else if(kind==="hidden"){result(`히든 발견! +${lv}`,"var(--warn)","pop");fxSuccess(4,css("--t4"),true);sfx("success",5)}
   else if(kind==="keep"){result("유지","var(--warn)","shake");fxKeep(tierN(before));sfx("keep",tierN(before))}
@@ -755,11 +758,14 @@ function quip(kind,v){const a=QUIP[kind]||QUIP.keep;const t=a[Math.floor(Math.ra
 // ── 효과음 (파일 없이 브라우저에서 합성) ──
 let AC=null,SOUND=true;try{SOUND=localStorage.getItem("sound")!=="off"}catch(e){}
 function ac(){if(!SOUND)return null;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==="suspended")AC.resume();return AC}catch(e){return null}}
-function tone(f,t0,dur,type,vol,slide){const a=ac();if(!a)return;const o=a.createOscillator(),g=a.createGain(),t=a.currentTime+t0;o.type=type||"sine";o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+dur);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol||.2,t+.01);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g).connect(a.destination);o.start(t);o.stop(t+dur+.05)}
-function noise(t0,dur,vol,freq,q){const a=ac();if(!a)return;const n=Math.floor(a.sampleRate*dur),buf=a.createBuffer(1,n,a.sampleRate),d=buf.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);const s=a.createBufferSource(),f=a.createBiquadFilter(),g=a.createGain(),t=a.currentTime+t0;s.buffer=buf;f.type="bandpass";f.frequency.value=freq||1200;f.Q.value=q||.8;g.gain.value=vol||.3;s.connect(f).connect(g).connect(a.destination);s.start(t)}
-function hpNoise(t0,dur,vol,hp){const a=ac();if(!a)return;const n=Math.floor(a.sampleRate*dur),buf=a.createBuffer(1,n,a.sampleRate),d=buf.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,4);const s=a.createBufferSource(),f=a.createBiquadFilter(),g=a.createGain(),t=a.currentTime+t0;s.buffer=buf;f.type="highpass";f.frequency.value=hp||3000;g.gain.value=vol;s.connect(f).connect(g).connect(a.destination);s.start(t)}
+let BUS=null;
+function bus(){const a=ac();if(!a)return null;if(!BUS){BUS=a.createGain();BUS.gain.value=1;BUS.connect(a.destination)}return BUS}
+function cutSfx(){if(!BUS||!AC)return;const g=BUS,t=AC.currentTime;BUS=null;try{g.gain.cancelScheduledValues(t);g.gain.setValueAtTime(g.gain.value,t);g.gain.linearRampToValueAtTime(0.0001,t+.07);setTimeout(()=>{try{g.disconnect()}catch(e){}},150)}catch(e){}}
+function tone(f,t0,dur,type,vol,slide){const a=ac();if(!a)return;const o=a.createOscillator(),g=a.createGain(),t=a.currentTime+t0;o.type=type||"sine";o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+dur);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol||.2,t+.01);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g).connect(bus());o.start(t);o.stop(t+dur+.05)}
+function noise(t0,dur,vol,freq,q){const a=ac();if(!a)return;const n=Math.floor(a.sampleRate*dur),buf=a.createBuffer(1,n,a.sampleRate),d=buf.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);const s=a.createBufferSource(),f=a.createBiquadFilter(),g=a.createGain(),t=a.currentTime+t0;s.buffer=buf;f.type="bandpass";f.frequency.value=freq||1200;f.Q.value=q||.8;g.gain.value=vol||.3;s.connect(f).connect(g).connect(bus());s.start(t)}
+function hpNoise(t0,dur,vol,hp){const a=ac();if(!a)return;const n=Math.floor(a.sampleRate*dur),buf=a.createBuffer(1,n,a.sampleRate),d=buf.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,4);const s=a.createBufferSource(),f=a.createBiquadFilter(),g=a.createGain(),t=a.currentTime+t0;s.buffer=buf;f.type="highpass";f.frequency.value=hp||3000;g.gain.value=vol;s.connect(f).connect(g).connect(bus());s.start(t)}
 // 쇠를 때리는 「캉」: 링 모듈레이션으로 비조화음(금속성) + 날카로운 타격 잡음 + 짧은 쿵
-function strike(t0,vol,ring,sc){sc=sc||1;const a=ac();if(!a)return;const t=a.currentTime+t0,out=a.createGain();out.gain.setValueAtTime(0.0001,t);out.gain.exponentialRampToValueAtTime(vol,t+.003);out.gain.exponentialRampToValueAtTime(0.0001,t+(ring||.35));out.connect(a.destination);
+function strike(t0,vol,ring,sc){sc=sc||1;const a=ac();if(!a)return;const t=a.currentTime+t0,out=a.createGain();out.gain.setValueAtTime(0.0001,t);out.gain.exponentialRampToValueAtTime(vol,t+.003);out.gain.exponentialRampToValueAtTime(0.0001,t+(ring||.35));out.connect(bus());
   [[2200,1.0],[3150,.6],[4720,.45],[6380,.3]].forEach(([f0,v])=>{const f=f0*sc;const c=a.createOscillator(),m=a.createOscillator(),mg=a.createGain(),g=a.createGain();c.type="square";c.frequency.value=f;m.frequency.value=f*1.41;mg.gain.value=0;g.gain.value=v*.25;
     m.connect(mg.gain);mg.gain.value=1;c.connect(mg).connect(g).connect(out);c.start(t);m.start(t);c.stop(t+(ring||.35)+.05);m.stop(t+(ring||.35)+.05)});
   hpNoise(t0,.05,vol*1.6,2500);tone(140,t0,.07,"triangle",vol*.6,90)}
@@ -820,7 +826,10 @@ function run(){if(running)return;running=true;(function f(){cx.clearRect(0,0,cv.
     else{cx.beginPath();cx.arc(p.x,p.y,p.s,0,7);cx.fill()}});
   cx.globalAlpha=1;if(parts.length||rings.length||rays)requestAnimationFrame(f);else{running=false;cx.clearRect(0,0,cv.width,cv.height)}})()}
 function burst(col,n){fxSuccess(1,col,false)}
-$("upBtn").onclick=()=>{if(!BUSY&&ST&&ST.lv<META.max)sfx("hammer");act("enhance",{useScroll:$("useScroll").checked})};
+let LAST_TAP=0;
+function enhanceTap(){const now=Date.now();if(now-LAST_TAP<200||BUSY||!ST||ST.lv>=META.max)return;LAST_TAP=now;
+  cutSfx();sfx("hammer");act("enhance",{useScroll:$("useScroll").checked},{minMs:560})}
+$("upBtn").onclick=e=>{e.currentTarget.blur();enhanceTap()};
 $("sellBtn").onclick=doSell;
 $("fightBtn").onclick=()=>{showTab("arena");$("p-arena").scrollIntoView({behavior:"smooth",block:"nearest"})};
 
@@ -878,8 +887,9 @@ $("bragShare").onclick=async()=>{const t=bragText();const copied=await copyText(
 $("bragLink").onclick=async()=>{const t=bragText(),u=gameUrl();
   try{if(navigator.share){await navigator.share({title:"검키우기 대장간",text:t.replace(/\n같이 하자 👉 .*$/,"\n같이 하자 👉"),url:u});return}}catch(e){if(e&&e.name==="AbortError")return}
   toast(await copyText(t)?"문구와 링크를 복사했습니다. 카톡에 붙여넣으세요":t)};
+document.addEventListener("keyup",e=>{if((e.code==="Space"||e.key==="Enter")&&e.target&&e.target.tagName==="BUTTON"&&e.target.id==="upBtn")e.preventDefault()},true);
 document.addEventListener("keydown",e=>{if(!$("gate").hidden||e.target.tagName==="INPUT"&&e.key!==" ")return;if(e.repeat)return;
-  if(e.code==="Space"||e.key==="Enter"){e.preventDefault();$("upBtn").click()}else if(e.key==="s"||e.key==="S"||e.key==="ㄴ")doSell();else if(e.key==="b"||e.key==="B"||e.key==="ㅠ")$("fightBtn").click()});
+  if(e.code==="Space"||e.key==="Enter"){e.preventDefault();enhanceTap()}else if(e.key==="s"||e.key==="S"||e.key==="ㄴ")doSell();else if(e.key==="b"||e.key==="B"||e.key==="ㅠ")$("fightBtn").click()});
 addEventListener("resize",size);
 
 let MODE="login";
