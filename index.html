@@ -730,7 +730,7 @@ async function makeBrag(){await loadFonts();const W=900,H=1200,cv2=document.crea
   return cv2}
 let BRAG=null;
 // 카카오 개발자 콘솔의 JavaScript 키 (GitHub 사이트 도메인 등록 필요). 비어 있으면 휴대폰 공유창을 씁니다.
-const KAKAO_KEY = "";
+const KAKAO_KEY = "7128e59a42cc391ef2aa19082e02afb4";
 let KAKAO_P=null;
 function kakaoReady(){if(!KAKAO_KEY||(window.google&&google.script))return Promise.resolve(null);if(KAKAO_P)return KAKAO_P;
   KAKAO_P=new Promise(res=>{if(window.Kakao){res(window.Kakao);return}const sc=document.createElement("script");sc.src="https://t1.kakaocdn.net/kakao_js_sdk/2.8.4/kakao.min.js";sc.crossOrigin="anonymous";sc.onload=()=>res(window.Kakao||null);sc.onerror=()=>res(null);document.head.append(sc);setTimeout(()=>res(window.Kakao||null),6000)})
