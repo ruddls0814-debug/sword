@@ -265,6 +265,19 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
 @media (prefers-reduced-motion:reduce){.boom img{animation:none}}
 
 .mt{font-style:normal;font-weight:700}.mt1{color:var(--ok)}.mt-1{color:var(--bad)}.mt0{color:var(--dim)}.mtq{color:var(--warn)}
+
+.roombar{display:flex;gap:8px;align-items:center}
+.roomnow{flex:1;min-width:0;text-align:left;background:var(--coal);border:1px solid var(--ash);border-radius:12px;padding:9px 12px;font-weight:700;color:var(--bone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.roomnow small{color:var(--ember);font-weight:500;margin-left:6px;font-size:12px}
+.roompanel{display:grid;gap:8px;background:var(--coal);border:1px solid var(--ember);border-radius:12px;padding:12px}
+.roompanel input{font:inherit;font-size:16px;color:var(--bone);background:var(--soot);border:1px solid var(--ash);border-radius:10px;padding:10px;min-width:0}
+.row2b{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.room{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--ash)}
+.room:last-child{border:0}.room .meta{min-width:0}.room .meta b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.room .meta span{font-size:12px;color:var(--dim)}
+.room .acts{display:flex;gap:6px}.room button{border-radius:10px;padding:7px 12px;font-weight:700;border:1px solid var(--ember);color:var(--ember);background:var(--soot)}
+.room button.del{border-color:var(--ash);color:var(--dim)}
+.room.cur{background:rgba(255,122,47,.08);border-radius:8px;padding-inline:6px}
 </style>
 </head>
 <body>
@@ -345,7 +358,12 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
         <div class="chat" id="liveLog"></div>
       </div>
       <div class="pane" id="p-admin" hidden><div id="adminBox"></div></div>
-      <div class="pane chatpane" id="p-chat" hidden><div class="chatlog" id="chatLog"><p class="empty">아직 대화가 없습니다. 먼저 인사해 보세요.</p></div>
+      <div class="pane chatpane" id="p-chat" hidden>
+        <div class="roombar"><button type="button" class="roomnow" id="roomNow">💬 전체 <small>방 바꾸기</small></button><button type="button" class="btn" id="roomNew" style="padding:8px 12px">＋ 방 만들기</button></div>
+        <div class="roompanel" id="roomPanel" hidden><div id="roomList"><p class="empty">불러오는 중…</p></div></div>
+        <form class="roompanel" id="roomForm" hidden autocomplete="off"><b>새 채팅방</b><input id="roomName" maxlength="20" placeholder="방 이름 (2~20자)" aria-label="방 이름"><input id="roomPwNew" maxlength="20" type="password" placeholder="비밀번호 (선택, 4~20자 · 비우면 누구나 입장)" aria-label="방 비밀번호"><div class="row2b"><button type="button" class="btn" id="roomCancel">취소</button><button type="submit" class="btn hot" style="font-size:16px">방 열기</button></div></form>
+        <form class="roompanel" id="roomPwForm" hidden autocomplete="off"><b id="roomPwTitle">비밀번호</b><input id="roomPwIn" maxlength="20" type="password" placeholder="방 비밀번호" aria-label="방 비밀번호"><div class="row2b"><button type="button" class="btn" id="roomPwCancel">취소</button><button type="submit" class="btn hot" style="font-size:16px">입장</button></div></form>
+        <div class="chatlog" id="chatLog"><p class="empty">아직 대화가 없습니다. 먼저 인사해 보세요.</p></div>
         <form class="chatform" id="chatForm" autocomplete="off"><input id="chatInput" maxlength="120" placeholder="메시지 입력 (최대 120자)" aria-label="채팅 메시지" enterkeyhint="send"><button class="btn hot" type="submit" id="chatSend">보내기</button></form></div>
       <div class="pane" id="p-feed" hidden><div class="chat" id="feed"></div></div>
       <div class="pane" id="p-arena" hidden><p class="note" id="battleLeft" style="margin:0 0 6px"></p><div id="foes"></div><p class="note">상대는 다른 플레이어의 지금 검입니다. 이기면 상금을 받고, 지면 참가비가 상대에게 갑니다. 진 쪽 검은 강화 단계가 1 떨어집니다. 하루 10번까지 도전할 수 있습니다.</p><p class="note"><b>상성</b> · 불 → 쇠 → 자연 → 땅 → 물 → 불 순서로 앞이 뒤를 이깁니다. 빛과 어둠은 서로 상극이라 먼저 도전한 쪽이 유리합니다. 유리하면 강화 단계 +2만큼, 불리하면 -2만큼 세게 싸웁니다. 히든 우진은 매번 예측 불가!</p></div>
@@ -834,11 +852,35 @@ function enterChannel(){if(inChannel||!ST)return;inChannel=true;sendWatch();watc
 function leaveChannel(){if(!inChannel)return;inChannel=false;clearInterval(watchTimer);sendWatch(true)}
 addEventListener("pagehide",()=>{if(inChannel)sendWatch(true)});
 function startLive(){if(liveTimer)return;pollLive();liveTimer=setInterval(()=>{if(document.visibilityState==="visible")pollLive()},2500)}
-async function pollLive(){try{const r=await call("live",{since:Math.max(LSEQ,0),chatSince:Math.max(CSEQ,0)});if(!r||!r.ok)return;handleChat(r);
+async function pollLive(){try{const r=await call("live",{since:Math.max(LSEQ,0),chatSince:Math.max(CSEQ,0),room:ROOM.id,roomPw:ROOMPW});if(r&&r.roomError&&ROOM.id!=="lobby"){toast(r.roomError+" · 전체 방으로 이동합니다");try{localStorage.removeItem("roomPw_"+ROOM.id)}catch(e){}setRoom({id:"lobby",name:"전체"});return}if(!r||!r.ok)return;handleChat(r);
   const first=LSEQ<0;LSEQ=r.seq;if(r.min)PUBLIC_MIN=r.min;if(inChannel&&r.watchers)showWatchers(r.watchers);
   r.ev.forEach(e=>{addLiveLog(e);if(!first)showLive(e)});
   if(first){const last=r.ev.filter(e=>e.type==="enh").pop();if(last)paintStage(last,true)}}catch(e){}}
 let CSEQ=-1,UNREAD=0;
+let ROOM={id:"lobby",name:"전체",lock:false},ROOMPW="";
+try{const r=JSON.parse(localStorage.getItem("chatRoom")||"null");if(r&&r.id){ROOM=r;ROOMPW=localStorage.getItem("roomPw_"+r.id)||""}}catch(e){}
+function setRoom(r,pw){ROOM={id:r.id,name:r.name,lock:!!r.lock};ROOMPW=pw||"";try{localStorage.setItem("chatRoom",JSON.stringify(ROOM));if(pw)localStorage.setItem("roomPw_"+r.id,pw)}catch(e){}
+  $("roomNow").innerHTML="";$("roomNow").append(document.createTextNode((ROOM.lock?"🔒 ":"💬 ")+ROOM.name));const sm=document.createElement("small");sm.textContent="방 바꾸기";$("roomNow").append(sm);
+  CSEQ=-1;UNREAD=0;updBadge();$("chatLog").innerHTML='<p class="empty">불러오는 중…</p>';["roomPanel","roomForm","roomPwForm"].forEach(i=>$(i).hidden=true);pollLive()}
+async function loadRooms(){const box=$("roomList");box.innerHTML='<p class="empty">불러오는 중…</p>';
+  try{const r=await call("rooms");if(!r.ok){box.textContent=r.error;return}box.innerHTML="";
+    r.rooms.forEach(x=>{const d=document.createElement("div");d.className="room"+(x.id===ROOM.id?" cur":"");d.innerHTML='<div class="meta"><b></b><span></span></div><div class="acts"></div>';
+      d.querySelector("b").textContent=(x.lock?"🔒 ":"💬 ")+x.name;d.querySelector("span").textContent=x.id==="lobby"?"모두가 함께 쓰는 방":`방장 ${x.owner}${x.lock?" · 비밀번호":""}`;
+      const go=document.createElement("button");go.textContent=x.id===ROOM.id?"지금 방":"입장";go.disabled=x.id===ROOM.id;go.onclick=()=>enterRoom(x);d.querySelector(".acts").append(go);
+      if(x.mine||(ST&&ST.role==="admin"&&x.id!=="lobby")){const del=document.createElement("button");del.className="del";del.textContent="없애기";del.onclick=async()=>{if(del.dataset.arm!=="1"){del.dataset.arm="1";del.textContent="한 번 더";setTimeout(()=>{del.dataset.arm="";del.textContent="없애기"},2500);return}
+        const q=await call("roomDelete",{room:x.id});toast(q.ok?`「${q.name}」 방을 없앴습니다`:q.error);if(q.ok&&ROOM.id===x.id)setRoom({id:"lobby",name:"전체"});loadRooms()};d.querySelector(".acts").append(del)}
+      box.append(d)})}catch(e){box.innerHTML='<p class="empty">불러오지 못했습니다.</p>'}}
+let PENDROOM=null;
+async function enterRoom(x){if(x.id==="lobby"||!x.lock){const q=await call("roomJoin",{room:x.id});if(q.ok)setRoom(q.room);else toast(q.error);return}
+  let saved="";try{saved=localStorage.getItem("roomPw_"+x.id)||""}catch(e){}
+  if(saved){const q=await call("roomJoin",{room:x.id,pw:saved});if(q.ok){setRoom(q.room,saved);return}}
+  PENDROOM=x;$("roomPwTitle").textContent=`「${x.name}」 비밀번호`;$("roomPwIn").value="";$("roomPanel").hidden=true;$("roomPwForm").hidden=false;setTimeout(()=>$("roomPwIn").focus(),50)}
+$("roomNow").onclick=()=>{const p=$("roomPanel");p.hidden=!p.hidden;$("roomForm").hidden=true;$("roomPwForm").hidden=true;if(!p.hidden)loadRooms()};
+$("roomNew").onclick=()=>{$("roomForm").hidden=false;$("roomPanel").hidden=true;$("roomPwForm").hidden=true;setTimeout(()=>$("roomName").focus(),50)};
+$("roomCancel").onclick=()=>{$("roomForm").hidden=true};$("roomPwCancel").onclick=()=>{$("roomPwForm").hidden=true};
+$("roomForm").onsubmit=async e=>{e.preventDefault();const name=$("roomName").value.trim(),pw=$("roomPwNew").value;const q=await call("roomCreate",{name,pw});if(!q.ok){toast(q.error);return}$("roomName").value="";$("roomPwNew").value="";toast(`「${q.room.name}」 방을 열었습니다`);setRoom(q.room,pw)};
+$("roomPwForm").onsubmit=async e=>{e.preventDefault();if(!PENDROOM)return;const pw=$("roomPwIn").value;const q=await call("roomJoin",{room:PENDROOM.id,pw});if(!q.ok){toast(q.error);return}setRoom(q.room,pw)};
+setTimeout(()=>{try{setRoom(ROOM,ROOMPW)}catch(e){}},0);
 function updBadge(){const b=$("chatBadge");b.hidden=!UNREAD;b.textContent=UNREAD>99?"99+":UNREAD}
 function handleChat(r){if(!r.chat)return;const first=CSEQ<0;if(r.chatSeq!=null&&r.chatSeq<CSEQ){CSEQ=-1;$("chatLog").innerHTML=""}
   const box=$("chatLog");if(r.chat.length){const em=box.querySelector(".empty");if(em)em.remove()}
@@ -849,7 +891,7 @@ function handleChat(r){if(!r.chat)return;const first=CSEQ<0;if(r.chatSeq!=null&&
   while(box.children.length>120)box.firstChild.remove();
   if(r.chatSeq!=null)CSEQ=r.chatSeq;updBadge();if(atBottom||first)box.scrollTop=box.scrollHeight}
 $("chatForm").onsubmit=async e=>{e.preventDefault();const i=$("chatInput"),t=i.value.trim();if(!t||!ST)return;$("chatSend").disabled=true;
-  try{const q=await call("chat",{text:t});if(!q.ok){toast(q.error);return}i.value="";await pollLive()}catch(x){toast("보내지 못했습니다")}finally{$("chatSend").disabled=false;i.focus()}};
+  try{const q=await call("chat",{text:t,room:ROOM.id,roomPw:ROOMPW});if(!q.ok){toast(q.error);return}i.value="";await pollLive()}catch(x){toast("보내지 못했습니다")}finally{$("chatSend").disabled=false;i.focus()}};
 $("chatInput").addEventListener("focus",()=>setTimeout(()=>$("chatInput").scrollIntoView({block:"center",behavior:"smooth"}),300));
 function showHigh(e){const hb=$("highbar");$("highTitle").textContent=`🎉 고강 성공! +${e.lv}`;$("highText").textContent=`${e.nick}님이 ${e.name}을(를) 띄웠습니다!`;
   const a=$("highArt");if(e.line!=null)setArt(a,e.line,e.lv);hb.hidden=false;clearTimeout(showHigh.h);showHigh.h=setTimeout(()=>hb.hidden=true,6000);
