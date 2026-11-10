@@ -7,7 +7,8 @@
 <meta name="description" content="친구들과 함께 검을 강화하고 배틀하는 검키우기 대장간">
 <meta property="og:title" content="검키우기 대장간">
 <meta property="og:description" content="녹슨 부지깽이를 +20 전설의 검으로! 친구들과 함께 강화하고 배틀하세요.">
-<meta property="og:image" content="og.png">
+<meta property="og:image" content="https://ruddls0814-debug.github.io/sword/og.png">
+<meta property="og:url" content="https://ruddls0814-debug.github.io/sword/">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -357,7 +358,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
 </div>
 <div class="livebar" id="livebar" hidden><span><span class="dot"></span><b>LIVE</b></span><span class="res" id="lbRes"></span><span class="txt" id="lbTxt"></span></div>
 <canvas id="fxAll" aria-hidden="true"></canvas><div class="flash" id="flash"></div>
-<div class="gate" id="bragBox" hidden><div class="bragwrap"><p class="bh">이미지를 <b>길게 눌러</b> 저장하거나 공유해서 카톡방에 보내세요.</p><img id="bragImg" alt="내 검 자랑 카드"><div class="row2"><button class="btn" type="button" id="bragClose">닫기</button><button class="btn hot" type="button" id="bragShare" style="font-size:17px">공유 · 문구 복사</button></div></div></div>
+<div class="gate" id="bragBox" hidden><div class="bragwrap"><p class="bh">이미지를 <b>길게 눌러</b> 저장하거나 공유해서 카톡방에 보내세요.</p><img id="bragImg" alt="내 검 자랑 카드"><button class="btn hot" type="button" id="bragShare" style="font-size:17px">① 사진 보내기</button><button class="btn hot" type="button" id="bragLink" style="font-size:17px;background:linear-gradient(180deg,#fee500,#e6cf00);color:#1d1600">② 자랑 문구 + 게임 링크 보내기</button><p class="bh" id="bragTip">사진을 보낸 뒤 ②로 설명 문구와 게임 링크를 이어서 보내세요. 링크는 카톡에서 미리보기 카드로 보입니다.</p><button class="btn" type="button" id="bragClose">닫기</button></div></div>
 <div class="gate" id="othersDex" hidden><div class="bragwrap" style="width:min(640px,100%)"><div class="panel" style="padding:14px" id="othersBody"></div><button class="btn" type="button" id="othersClose">닫기</button></div></div>
 <div class="toast" id="toast"></div>
 <script>
@@ -690,19 +691,23 @@ $("logoutBtn").onclick=()=>{try{localStorage.removeItem("sword-token")}catch(e){
 $("soundBtn").onclick=()=>setSound(!SOUND);$("soundBtn").textContent=SOUND?"🔊 효과음 켬":"🔇 효과음 끔";
 function bragText(){return `[검키우기 대장간] ${ST.nickname} 지금 +${ST.lv} ${ST.name} 들고 있음. 최고 +${ST.best}, 파괴 ${ST.broke}번 ㅋㅋ${gameUrl()?"\n같이 하자 👉 "+gameUrl():""}`}
 function wrapText(c,text,x,y,maxW,lh){let line="",lines=[];for(const ch of text){const t=line+ch;if(c.measureText(t).width>maxW&&line){lines.push(line);line=ch}else line=t}lines.push(line);lines.slice(0,3).forEach((l,i)=>c.fillText(l,x,y+i*lh));return lines.length}
-async function makeBrag(){const W=900,H=1200,cv2=document.createElement("canvas");cv2.width=W;cv2.height=H;const c=cv2.getContext("2d");
+async function loadFonts(){const txt=`검키우기 대장간+0123456789${ST.name}${descOf(ST.lv,ST.line)}${ST.nickname}의 검 · 히든 최고`;
+  const specs=["400 150px 'Black Han Sans'","400 64px 'Black Han Sans'","700 34px 'IBM Plex Sans KR'","500 32px 'IBM Plex Sans KR'","700 30px 'IBM Plex Sans KR'"];
+  try{await Promise.race([Promise.all(specs.map(f=>document.fonts.load(f,txt))),new Promise(r=>setTimeout(r,3500))])}catch(e){}}
+const KFB="'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR','Noto Sans CJK KR',sans-serif";
+async function makeBrag(){await loadFonts();const W=900,H=1200,cv2=document.createElement("canvas");cv2.width=W;cv2.height=H;const c=cv2.getContext("2d");
   const tc=ST.hidden?css("--t4"):css(tierOf(Math.max(1,ST.lv)).c);
   const g=c.createRadialGradient(W/2,470,40,W/2,470,620);g.addColorStop(0,"#3a2216");g.addColorStop(1,"#120d0a");c.fillStyle=g;c.fillRect(0,0,W,H);
   c.strokeStyle=tc;c.lineWidth=6;c.strokeRect(24,24,W-48,H-48);
-  c.fillStyle="#a8978a";c.font="700 30px 'IBM Plex Sans KR',sans-serif";c.textAlign="center";c.fillText("검키우기 대장간",W/2,90);
+  c.fillStyle="#a8978a";c.font="700 30px 'IBM Plex Sans KR',"+KFB+"";c.textAlign="center";c.fillText("검키우기 대장간",W/2,90);
   const u=ST.line!=null&&ST.lv>0?await getSprite(ST.line):null;
   if(u){const img=new Image();img.src=u;await img.decode().catch(()=>{});const idx=ST.lv-1,cw=img.naturalWidth/5,ch=img.naturalHeight/4;
     c.save();c.shadowColor=tc;c.shadowBlur=ST.lv>=5?70:20;c.drawImage(img,(idx%5)*cw,Math.floor(idx/5)*ch,cw,ch,W/2-300,150,600,600);c.restore()}
   else{c.font="200px sans-serif";c.fillText("🔨",W/2,560)}
-  c.fillStyle=tc;c.font="400 150px 'Black Han Sans',sans-serif";c.fillText("+"+ST.lv,W/2,900);
-  c.fillStyle="#f1e6d8";c.font="400 64px 'Black Han Sans',sans-serif";c.fillText(ST.name,W/2,985);
-  c.fillStyle="#a8978a";c.font="500 32px 'IBM Plex Sans KR',sans-serif";wrapText(c,descOf(ST.lv,ST.line),W/2,1040,W-160,42);
-  c.fillStyle=ST.hidden?css("--t4"):"#ff7a2f";c.font="700 34px 'IBM Plex Sans KR',sans-serif";c.fillText(`${ST.nickname}의 검${ST.hidden?" · 히든":""} · 최고 +${ST.best}`,W/2,1140);
+  c.fillStyle=tc;c.font="400 150px 'Black Han Sans',"+KFB;c.fillText("+"+ST.lv,W/2,900);
+  c.fillStyle="#f1e6d8";c.font="400 64px 'Black Han Sans',"+KFB;c.fillText(ST.name,W/2,985);
+  c.fillStyle="#a8978a";c.font="500 32px 'IBM Plex Sans KR',"+KFB+"";wrapText(c,descOf(ST.lv,ST.line),W/2,1040,W-160,42);
+  c.fillStyle=ST.hidden?css("--t4"):"#ff7a2f";c.font="700 34px 'IBM Plex Sans KR',"+KFB+"";c.fillText(`${ST.nickname}의 검${ST.hidden?" · 히든":""} · 최고 +${ST.best}`,W/2,1140);
   return cv2}
 let BRAG=null;
 $("shareBtn").onclick=async()=>{if(!ST)return;try{await document.fonts.ready}catch(e){}
@@ -710,18 +715,22 @@ $("shareBtn").onclick=async()=>{if(!ST)return;try{await document.fonts.ready}cat
   BRAG=await new Promise(r=>cv2.toBlob(r,"image/png"))};
 $("othersClose").onclick=()=>{$("othersDex").hidden=true};
 $("bragClose").onclick=()=>{$("bragBox").hidden=true};
-$("bragShare").onclick=async()=>{const t=bragText();
-  try{const f=new File([BRAG],"my-sword.png",{type:"image/png"});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],text:t});return}}catch(e){if(e&&e.name==="AbortError")return}
+async function copyText(t){try{await navigator.clipboard.writeText(t);return true}catch(e){return false}}
+$("bragShare").onclick=async()=>{const t=bragText();const copied=await copyText(t);
+  try{const f=new File([BRAG],"my-sword.png",{type:"image/png"});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:"검키우기 대장간",text:t});if(copied)toast("문구도 복사해 뒀어요. 카톡에서 붙여넣기 하세요");return}}catch(e){if(e&&e.name==="AbortError")return}
   try{await navigator.clipboard.write([new ClipboardItem({"image/png":BRAG})]);toast("검 사진을 복사했습니다. 카톡에 붙여넣으세요");return}catch(e){}
-  try{await navigator.clipboard.writeText(t);toast("문구를 복사했습니다. 사진은 길게 눌러 저장해 함께 보내세요")}catch(e){toast("사진을 길게 눌러 저장한 뒤 카톡에서 보내세요")}};
+  toast("사진을 길게 눌러 저장한 뒤 카톡에서 보내세요")};
+$("bragLink").onclick=async()=>{const t=bragText(),u=gameUrl();
+  try{if(navigator.share){await navigator.share({title:"검키우기 대장간",text:t.replace(/\n같이 하자 👉 .*$/,"\n같이 하자 👉"),url:u});return}}catch(e){if(e&&e.name==="AbortError")return}
+  toast(await copyText(t)?"문구와 링크를 복사했습니다. 카톡에 붙여넣으세요":t)};
 document.addEventListener("keydown",e=>{if(!$("gate").hidden||e.target.tagName==="INPUT"&&e.key!==" ")return;if(e.repeat)return;
   if(e.code==="Space"||e.key==="Enter"){e.preventDefault();$("upBtn").click()}else if(e.key==="s"||e.key==="S"||e.key==="ㄴ")doSell();else if(e.key==="b"||e.key==="B"||e.key==="ㅠ")$("fightBtn").click()});
 addEventListener("resize",size);
 
 let MODE="login";
 function setMode(m){MODE=m;$("modeLogin").setAttribute("aria-pressed",m==="login");$("modeJoin").setAttribute("aria-pressed",m==="join");
-  $("introRow").hidden=m!=="join";$("gateGo").textContent=m==="join"?"가입 신청":"들어가기";
-  $("gateHelp").textContent=m==="join"?"닉네임과 숫자 4자리 비밀번호를 정해 신청하세요. 대장간 주인이 승인하면 바로 플레이할 수 있습니다.":"닉네임과 비밀번호로 들어갑니다.";$("gateErr").textContent=""}
+  $("introRow").hidden=m!=="join";$("gateGo").textContent=m==="join"?"가입하기":"들어가기";
+  $("gateHelp").textContent=m==="join"?"닉네임과 숫자 4자리 비밀번호를 정하고 가입하세요.":"닉네임과 비밀번호로 들어갑니다.";$("gateErr").textContent=""}
 $("modeLogin").onclick=()=>setMode("login");$("modeJoin").onclick=()=>setMode("join");
 function showGate(){$("gate").hidden=false;$("gateForm").hidden=false;$("waitBox").hidden=true;setTimeout(()=>$("nick").focus(),50)}
 function showWait(){$("gate").hidden=false;$("gateForm").hidden=true;$("waitBox").hidden=false}
@@ -742,7 +751,8 @@ async function loadMe(){const r=await call("me");if(!r.ok){if(r.pending){showWai
 // ── 관리자 ──
 async function loadAdmin(){const box=$("adminBox");box.innerHTML='<p class="empty">불러오는 중…</p>';
   try{const r=await call("pending");if(!r.ok){box.innerHTML="";box.append(document.createTextNode(r.error));return}
-    box.innerHTML="";const cb=document.createElement("div");cb.className="codebox";cb.innerHTML='친구에게 게임 주소를 보내면 「가입 신청」으로 들어옵니다. 승인 없이 바로 들어오게 하려면 구글 시트 settings 탭의 require_approval 을 FALSE 로 바꾸세요.';box.append(cb);
+    box.innerHTML="";const cb=document.createElement("div");cb.className="codebox";const apOn=String(r.approval).toUpperCase()!=="FALSE";cb.innerHTML=`<label style="display:flex;gap:10px;align-items:center;cursor:pointer;font-size:14px"><input type="checkbox" id="apToggle" ${apOn?"checked":""} style="width:20px;height:20px;accent-color:var(--ember)"> 가입할 때 관리자 승인 받기</label><span style="color:var(--dim);display:block;margin-top:6px">${apOn?"켜짐: 가입 신청을 관리자가 승인해야 플레이할 수 있습니다.":"꺼짐: 가입하면 바로 플레이할 수 있습니다."}</span>`;box.append(cb);
+    $("apToggle").onchange=async e=>{const q=await call("setApproval",{on:e.target.checked});toast(q.ok?(q.approval==="FALSE"?`승인 없이 바로 가입으로 바꿨습니다${q.approved?` (대기 ${q.approved}명 자동 승인)`:""}`:"이제 가입 신청을 승인해야 합니다"):q.error);loadAdmin()};
     const cp=document.createElement("button");cp.className="link";cp.textContent="초대 문구 복사";cp.onclick=()=>{const t=`[검키우기 대장간] 같이 하자!\n${gameUrl()}\n주소 열고 「가입 신청」 누르면 끝`;try{navigator.clipboard.writeText(t).then(()=>toast("복사했습니다")).catch(()=>toast(t))}catch(e){toast(t)}};box.append(cp);
     const gv=document.createElement("div");gv.className="give";gv.innerHTML='<b>골드 보내기</b><select id="giveTo" aria-label="받는 사람"><option value="">불러오는 중…</option></select><div class="row3"><input id="giveAmt" inputmode="numeric" placeholder="금액 (회수는 -100000처럼)" aria-label="금액"><button class="btn hot" type="button" id="giveBtn" style="font-size:16px;padding:10px 16px">보내기</button></div><input id="giveMemo" maxlength="40" placeholder="메모 (선택, 받는 사람 기록에 표시)" aria-label="메모">';box.append(gv);
     call("roster").then(q=>{const sel=$("giveTo");if(!q.ok){sel.innerHTML="<option>불러오지 못했습니다</option>";return}sel.innerHTML="";q.list.forEach(p=>{const o=document.createElement("option");o.value=p.id;o.textContent=`${p.nickname} · +${p.lv} · ${fmt(p.gold)} G`;sel.append(o)})});
