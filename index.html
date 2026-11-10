@@ -1169,7 +1169,7 @@ function showGoblin(list){if(!list||!list.length)return;const box=document.creat
   c.append(h,p,ul,bt);box.append(c);document.body.append(box);
   try{if(SOUND){sfx("coin",6);sfx("success",4)}}catch(e){}}
 
-async function openHunt(){renderHunt();try{const r=await call("me");if(r&&r.ok){ST=r.state;render();renderHunt();if(r.goblins&&r.goblins.length)showGoblin(r.goblins)}}catch(e){}}
+async function openHunt(){if(META&&!META.dungeons){try{const m=await call("bootstrap");if(m&&m.dungeons)META=m}catch(e){}}renderHunt();try{const r=await call("me");if(r&&r.ok){ST=r.state;render();renderHunt();if(r.goblins&&r.goblins.length)showGoblin(r.goblins)}}catch(e){}}
 (async function init(){try{META=await call("bootstrap");if(!TOKEN)showGate();else await loadMe()}catch(e){$("name").textContent="서버에 연결하지 못했습니다";}
   setInterval(()=>{if(document.visibilityState==="visible"&&ST)refreshBoard()},20000)})();
 </script>
@@ -1206,7 +1206,7 @@ async function openHunt(){renderHunt();try{const r=await call("me");if(r&&r.ok){
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794327902;
+const BUILD=1794328211;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
