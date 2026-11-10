@@ -263,6 +263,8 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
 @keyframes boomIn{0%{transform:scale(.2) rotate(-12deg);opacity:0}100%{transform:none;opacity:1}}
 @keyframes boomShake{25%{transform:translate(-8px,4px) rotate(-2deg)}75%{transform:translate(8px,-4px) rotate(2deg)}}
 @media (prefers-reduced-motion:reduce){.boom img{animation:none}}
+
+.mt{font-style:normal;font-weight:700}.mt1{color:var(--ok)}.mt-1{color:var(--bad)}.mt0{color:var(--dim)}.mtq{color:var(--warn)}
 </style>
 </head>
 <body>
@@ -271,7 +273,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
     <h1><small>PLAY · 다 같이 하는</small>검키우기 대장간</h1>
     <div class="purse">
       <div class="chip"><span class="k">골드</span><span class="gold" id="gold">-</span></div>
-      <div class="chip"><span class="k">방지권</span><span id="scrolls">-</span></div>
+      <span id="scrolls" hidden></span>
       <div class="chip"><span class="k">최고</span><span id="best">-</span></div>
     </div>
     <div class="who" id="who"></div>
@@ -308,7 +310,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
     <div class="result" id="result" role="status" aria-live="polite"></div>
     <div class="bankrupt" id="bankruptBox" hidden><div><b>파산했습니다</b><span id="bkText"></span></div><button class="btn hot" type="button" id="bkBtn">10만 G 받기</button></div>
     <div class="opts">
-      <label><input type="checkbox" id="useScroll"> 파괴 방지권 사용</label>
+      <label id="protLabel"><input type="checkbox" id="useScroll"> <span id="protText">파괴 방지</span></label>
       <button class="link" id="soundBtn" type="button" aria-pressed="true">🔊 효과음 켬</button>
       <button class="link" id="shareBtn">📸 카톡 자랑하기</button>
     </div>
@@ -346,11 +348,11 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
       <div class="pane chatpane" id="p-chat" hidden><div class="chatlog" id="chatLog"><p class="empty">아직 대화가 없습니다. 먼저 인사해 보세요.</p></div>
         <form class="chatform" id="chatForm" autocomplete="off"><input id="chatInput" maxlength="120" placeholder="메시지 입력 (최대 120자)" aria-label="채팅 메시지" enterkeyhint="send"><button class="btn hot" type="submit" id="chatSend">보내기</button></form></div>
       <div class="pane" id="p-feed" hidden><div class="chat" id="feed"></div></div>
-      <div class="pane" id="p-arena" hidden><p class="note" id="battleLeft" style="margin:0 0 6px"></p><div id="foes"></div><p class="note">상대는 다른 플레이어의 지금 검입니다. 이기면 상금을 받고, 지면 참가비가 상대에게 갑니다. 진 쪽 검은 강화 단계가 1 떨어집니다. 하루 10번까지 도전할 수 있습니다.</p></div>
+      <div class="pane" id="p-arena" hidden><p class="note" id="battleLeft" style="margin:0 0 6px"></p><div id="foes"></div><p class="note">상대는 다른 플레이어의 지금 검입니다. 이기면 상금을 받고, 지면 참가비가 상대에게 갑니다. 진 쪽 검은 강화 단계가 1 떨어집니다. 하루 10번까지 도전할 수 있습니다.</p><p class="note"><b>상성</b> · 불 → 쇠 → 자연 → 땅 → 물 → 불 순서로 앞이 뒤를 이깁니다. 빛과 어둠은 서로 상극이라 먼저 도전한 쪽이 유리합니다. 유리하면 강화 단계 +2만큼, 불리하면 -2만큼 세게 싸웁니다. 히든 우진은 매번 예측 불가!</p></div>
       <div class="pane" id="p-rank" hidden><div id="ranking"></div></div>
       <div class="pane" id="p-shop" hidden>
         <div class="shop">
-          <div class="item"><div><b>파괴 방지권</b><p>파괴 결과가 나오면 대신 유지됩니다. 1회용.</p></div><button class="btn" id="buyScroll" style="padding:10px 14px">구매<small id="scrollPrice">-</small></button></div>
+          <div class="item"><div><b>파괴 방지</b><p>강화할 때 「파괴 방지」를 체크하면 지금 검 판매가의 1/4을 더 내고, 파괴가 나와도 단계가 유지됩니다. +15부터는 쓸 수 없습니다.</p></div><span id="buyScroll" hidden></span><span id="scrollPrice" hidden></span></div>
           <div class="item"><div><b>파산 지원금</b><p>골드와 검 판매가를 합쳐 10 G 미만이면 하루 3번까지 10만 G를 받을 수 있습니다.</p></div><button class="btn" id="aidBtn" style="padding:10px 14px">받기<small id="aidLeft">-</small></button></div>
           <div class="item"><div><b>로그아웃</b><p>이 기기에서 로그아웃합니다. 닉네임과 비밀번호로 언제든 다시 들어올 수 있습니다.</p></div><button class="btn" id="logoutBtn" style="padding:10px 14px">로그아웃</button></div>
         </div>
@@ -428,7 +430,7 @@ function render(){if(!ST||!META)return;renderMyPublic();
   $("who").innerHTML="";$("who").append(document.createTextNode(ST.nickname+"님의 대장간"));
   $("lvl").textContent="+"+ST.lv;$("name").textContent=ST.name;$("desc").textContent=descOf(ST.lv,ST.line);
   const t=tierOf(ST.lv);
-  $("tier").textContent=ST.line==null?"정체불명 · 첫 강화에 종류가 정해집니다":`${t.n} · ${ST.lineName} 계열${ST.hidden?" · 히든 판매가":""}`;
+  $("tier").textContent=ST.line==null?"정체불명 · 첫 강화에 종류가 정해집니다":`${t.n} · ${ST.lineName} 계열 · ${ST.type} 속성${ST.hidden?" · 히든 판매가":""}`;
   $("tier").style.color=ST.hidden?"var(--warn)":"";$("lvl").style.color=css(t.c);
   if(ST.lv>=META.max){["pS","pK","pD"].forEach(i=>$(i).textContent="-");$("bS").style.width="100%";$("bK").style.width="0";$("bD").style.width="0";$("upCost").textContent="최고 단계";$("upBtn").disabled=true}
   else{const[s,d]=META.odds[ST.lv],k=100-s-d;$("pS").textContent=s+"%";$("pK").textContent=k+"%";$("pD").textContent=d+"%";$("bS").style.width=s+"%";$("bK").style.width=k+"%";$("bD").style.width=d+"%";$("upCost").textContent=ST.cost?fmt(ST.cost)+" G":"무료";$("upBtn").disabled=false}
@@ -437,7 +439,8 @@ function render(){if(!ST||!META)return;renderMyPublic();
   $("aidBtn").disabled=!(ST.bankrupt&&ST.aidLeft>0);$("aidLeft").textContent=`+10만 G · 오늘 ${ST.aidLeft}회`;
   $("bankruptBox").hidden=!ST.bankrupt;$("bkText").textContent=ST.aidLeft>0?`파산 지원금 10만 G를 받을 수 있습니다. 오늘 남은 횟수 ${ST.aidLeft}회`:"오늘 지원금 3회를 모두 받았습니다. 내일 다시 받을 수 있습니다";$("bkBtn").disabled=ST.aidLeft<=0;
   $("battleLeft").textContent=`오늘 남은 배틀 ${ST.battlesLeft} / 10회`;
-  if(ST.scrolls===0)$("useScroll").checked=false;
+  {const ok=ST.protectOk&&ST.lv>0,u=$("useScroll");u.disabled=!ok;if(!ok)u.checked=false;
+   $("protText").textContent=ST.lv>=(META.protectMax||15)?`파괴 방지 (+${META.protectMax||15}부터 사용 불가)`:ST.lv===0?"파괴 방지":`파괴 방지 (+${fmt(ST.protectCost)} G)`;$("protLabel").style.opacity=ok?1:.5}
   paintSword();renderLog();renderDex();renderStats();renderBoard()}
 function renderLog(){const c=$("chat");c.innerHTML="";(ST.log||[]).slice().reverse().forEach(m=>{const d=document.createElement("div");d.className="msg "+(m.kind||"");const t=document.createElement("span");t.className="t";t.textContent="대장장이"+(m.t?" · "+m.t:"");d.append(t,document.createTextNode(m.text));c.append(d)})}
 function renderBoard(){if(!BOARD)return;
@@ -448,7 +451,7 @@ function renderBoard(){if(!BOARD)return;
     d.querySelector("b").textContent=p.nickname+(p.me?" (나)":"");d.tabIndex=0;d.style.cursor="pointer";d.title="도감 보기";d.onclick=()=>openOthersDex(p.id,p.nickname);d.querySelector("span").textContent=`${p.name}${p.hidden?" · 히든":""} · 최고 +${p.best}`;r.append(d)});
   const fo=$("foes");fo.innerHTML="";if(!BOARD.foes.length)fo.innerHTML='<p class="empty">아직 다른 플레이어가 없습니다. 링크를 카톡방에 공유해 친구를 불러 보세요.</p>';
   BOARD.foes.forEach(x=>{const d=document.createElement("div");d.className="foe";
-    d.innerHTML=`<div class="av" style="color:${css(tierOf(x.lv).c)}">+${x.lv}</div><div class="meta"><b></b><span>승률 ${x.winP}% · 상금 ${fmt(x.prize)} G · 참가비 ${fmt(x.fee)} G</span></div>`;
+    d.innerHTML=`<div class="av" style="color:${css(tierOf(x.lv).c)}">+${x.lv}</div><div class="meta"><b></b><span><em class="mt mt${x.match==null?"q":x.match}">${x.match==null?"상성 ???":x.match>0?"▲ 상성 유리":x.match<0?"▼ 상성 불리":"상성 보통"}</em> ${x.type} · 승률 ${x.winP}%${x.match==null?"?":""} · 상금 ${fmt(x.prize)} G · 참가비 ${fmt(x.fee)} G</span></div>`;
     d.querySelector("b").textContent=x.nickname+" · "+x.name;
     if(x.line!=null&&x.lv>0){const av=d.querySelector(".av");av.classList.add("img");av.innerHTML=`<span>+${x.lv}</span>`;setArt(av,x.line,x.lv)}
     const b=document.createElement("button");b.textContent="도전";b.disabled=BUSY||(ST&&(ST.gold<x.fee||ST.battlesLeft<=0));b.onclick=()=>act("battle",{targetId:x.id});d.append(b);fo.append(d)})}
@@ -466,7 +469,7 @@ function renderDexInto(box,seen,who){box.innerHTML="";const L=META.lines,sm=dexS
   order.forEach(i=>{const l=L[i],top=seen[i]||0,known=top>=1;const c=document.createElement("button");c.type="button";c.className="dcard"+(l.h?" h":"")+(known?"":" lock")+(top>=20?" max":"");
     c.innerHTML=`<span class="mini"></span><span class="dn"></span><span class="dl2"></span><span class="bar2"><i style="width:${top*5}%"></i></span>`;
     c.querySelector(".dn").textContent=known?l.names[top-1]:(l.h?"??? 히든":"???");
-    c.querySelector(".dl2").textContent=known?`${l.n} 계열 · 최고 +${top}`:(l.h?"아직 못 찾은 히든":`${l.n} 계열 · 미발견`);
+    c.querySelector(".dl2").textContent=known?`${l.n} · ${l.t||""} · 최고 +${top}`:(l.h?"아직 못 찾은 히든":`${l.n} 계열 · 미발견`);
     const m=c.querySelector(".mini");if(known)setArt(m,i,top);else m.textContent="?";
     c.onclick=()=>{const same=detail.dataset.i===String(i)&&!detail.hidden;grid.querySelectorAll(".dcard").forEach(x=>x.classList.remove("sel"));if(same){detail.hidden=true;return}
       c.classList.add("sel");detail.dataset.i=i;showDexDetail(detail,i,top);detail.hidden=false;c.after(detail);detail.scrollIntoView({block:"nearest",behavior:"smooth"})};
@@ -714,7 +717,7 @@ function burst(col,n){fxSuccess(1,col,false)}
 $("upBtn").onclick=()=>{if(!BUSY&&ST&&ST.lv<META.max)sfx("hammer");act("enhance",{useScroll:$("useScroll").checked})};
 $("sellBtn").onclick=doSell;
 $("fightBtn").onclick=()=>{showTab("arena");$("p-arena").scrollIntoView({behavior:"smooth",block:"nearest"})};
-$("buyScroll").onclick=()=>act("buyScroll");
+
 $("aidBtn").onclick=()=>act("aid");$("bkBtn").onclick=()=>act("aid");
 $("logoutBtn").onclick=()=>{try{localStorage.removeItem("sword-token")}catch(e){}TOKEN=null;ST=null;showGate()};
 $("soundBtn").onclick=()=>setSound(!SOUND);$("soundBtn").textContent=SOUND?"🔊 효과음 켬":"🔇 효과음 끔";
@@ -822,7 +825,7 @@ function renderMyPublic(){const box=$("myPublic");if(!box||!ST||!META)return;box
   if(ST.lv<PUBLIC_MIN){d.innerHTML=`<p>공개 강화는 <b style="color:var(--bone)">+${PUBLIC_MIN} 이상</b> 검만 할 수 있습니다. 지금 내 검은 +${ST.lv}입니다. 대장간에서 키워서 오세요.</p>`;box.append(d);return}
   if(ST.lv>=META.max){d.innerHTML="<p>이미 최고 단계입니다.</p>";box.append(d);return}
   const [s,dd]=META.odds[ST.lv];
-  d.innerHTML=`<p>내 검 +${ST.lv} <span></span> · 지켜보는 사람 앞에서 강화합니다.</p><button class="btn hot" type="button">공개 강화<small>${Number(ST.cost).toLocaleString("ko-KR")} G</small></button><p>파괴 방지권 사용은 대장간의 체크를 따릅니다 (남은 방지권 ${ST.scrolls}장).</p>`;
+  d.innerHTML=`<p>내 검 +${ST.lv} <span></span> · 지켜보는 사람 앞에서 강화합니다.</p><button class="btn hot" type="button">공개 강화<small>${Number(ST.cost).toLocaleString("ko-KR")} G</small></button><p>파괴 방지는 대장간의 체크를 따릅니다${ST.protectOk?` (+${Number(ST.protectCost).toLocaleString("ko-KR")} G)`:" (+15부터 사용 불가)"}.</p>`;
   d.querySelector("span").textContent=ST.name;
   const b=d.querySelector("button");b.disabled=BUSY;b.onclick=()=>act("enhance",{useScroll:$("useScroll").checked,public:true});box.append(d)}
 async function sendWatch(leave){try{const r=await call("watch",{leave:!!leave});if(r&&r.ok)showWatchers(r.watchers)}catch(e){}}
