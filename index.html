@@ -472,7 +472,8 @@ try{TOKEN=localStorage.getItem("sword-token")}catch(e){}
 function gameUrl(){return (window.google&&google.script)?(META&&META.url)||"":location.origin+location.pathname}
 function call(action,data){const payload=Object.assign({token:TOKEN},data||{});
   if(window.google&&google.script&&google.script.run)return new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(e=>rej(e)).api(action,payload));
-  const body=JSON.stringify(Object.assign({action},payload));const go=()=>fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body,redirect:"follow"}).then(r=>r.json());return go().catch(()=>new Promise(r=>setTimeout(r,800)).then(go))}
+  const body=JSON.stringify(Object.assign({action},payload));const go=()=>{const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),25000);return fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body,redirect:"follow",signal:ac.signal}).then(r=>r.json()).finally(()=>clearTimeout(tm))};if(!SAFE_RETRY[action])return go();return go().catch(()=>new Promise(r=>setTimeout(r,1000)).then(go))}
+const SAFE_RETRY={live:1,board:1,me:1,bootstrap:1,sprite:1,dex:1,rooms:1,watch:1};
 
 const SPR={},SPRP={},SPRFAIL={};
 try{Object.keys(localStorage).filter(k=>(k.startsWith("spr2_")||k.startsWith("spr3_"))).forEach(k=>localStorage.removeItem(k))}catch(e){}
@@ -599,7 +600,7 @@ async function act(action,data){if(BUSY||!ST)return;setBusy(true);
     if(data&&data.public){LSEQ_SELF=true;await pollLive();setTimeout(()=>{ST=r.state;fx(r.fx,before);render();renderMyPublic();refreshBoard()},1250);return}
     if(r.battle){try{await playBattle(r.battle)}catch(e){}}
     ST=r.state;fx(r.fx,before);render();refreshBoard()}
-  catch(e){result("연결이 불안정합니다","var(--dim)","shake");toast("잠시 뒤 다시 시도하세요")}
+  catch(e){result("응답이 늦습니다","var(--dim)","shake");toast("서버 응답이 늦어요. 결과를 다시 불러옵니다");setTimeout(()=>{call("me").then(q=>{if(q&&q.ok){ST=q.state;render()}}).catch(()=>{})},1500)}
   finally{setBusy(false);renderBoard()}}
 function say(text){const b=$("smith");$("smithTxt").textContent=text;b.classList.remove("say");void b.offsetWidth;b.classList.add("say")}
 let PREV={};
@@ -939,11 +940,13 @@ function showWatchers(w){const el=$("watchers");if(!el)return;el.textContent=w&&
 function enterChannel(){if(inChannel||!ST)return;inChannel=true;sendWatch();watchTimer=setInterval(()=>{if(document.visibilityState==="visible")sendWatch()},12000);renderMyPublic()}
 function leaveChannel(){if(!inChannel)return;inChannel=false;clearInterval(watchTimer);sendWatch(true)}
 addEventListener("pagehide",()=>{if(inChannel)sendWatch(true)});
-function startLive(){if(liveTimer)return;pollLive();liveTimer=setInterval(()=>{if(document.visibilityState==="visible")pollLive()},2500)}
-async function pollLive(){try{const r=await call("live",{since:Math.max(LSEQ,0),chatSince:Math.max(CSEQ,0),room:ROOM.id,roomPw:ROOMPW});if(r&&r.roomError&&ROOM.id!=="lobby"){toast(r.roomError+" · 전체 방으로 이동합니다");try{localStorage.removeItem("roomPw_"+ROOM.id)}catch(e){}setRoom({id:"lobby",name:"전체"});return}if(!r||!r.ok)return;handleChat(r);
+let LIVE_P=null,LIVE_FAIL=0;
+function startLive(){if(liveTimer)return;liveTimer=true;const loop=async()=>{if(document.visibilityState==="visible")await pollLive();const d=Math.min(20000,3000*Math.pow(2,LIVE_FAIL));setTimeout(loop,d)};loop()}
+function pollLive(){if(LIVE_P)return LIVE_P;LIVE_P=pollLive0().finally(()=>{LIVE_P=null});return LIVE_P}
+async function pollLive0(){try{const r=await call("live",{since:Math.max(LSEQ,0),chatSince:Math.max(CSEQ,0),room:ROOM.id,roomPw:ROOMPW});if(r&&r.roomError&&ROOM.id!=="lobby"){toast(r.roomError+" · 전체 방으로 이동합니다");try{localStorage.removeItem("roomPw_"+ROOM.id)}catch(e){}setRoom({id:"lobby",name:"전체"});return}if(!r||!r.ok){LIVE_FAIL=Math.min(3,LIVE_FAIL+1);return}LIVE_FAIL=0;handleChat(r);
   const first=LSEQ<0;LSEQ=r.seq;if(r.min)PUBLIC_MIN=r.min;if(inChannel&&r.watchers)showWatchers(r.watchers);
   r.ev.forEach(e=>{addLiveLog(e);if(!first)showLive(e)});
-  if(first){const last=r.ev.filter(e=>e.type==="enh").pop();if(last)paintStage(last,true)}}catch(e){}}
+  if(first){const last=r.ev.filter(e=>e.type==="enh").pop();if(last)paintStage(last,true)}}catch(e){LIVE_FAIL=Math.min(3,LIVE_FAIL+1)}}
 let CSEQ=-1,UNREAD=0;
 let ROOM={id:"lobby",name:"전체",lock:false},ROOMPW="";
 try{const r=JSON.parse(localStorage.getItem("chatRoom")||"null");if(r&&r.id){ROOM=r;ROOMPW=localStorage.getItem("roomPw_"+r.id)||""}}catch(e){}
