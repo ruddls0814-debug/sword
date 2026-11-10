@@ -460,7 +460,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
 <div class="toast" id="toast"></div>
 <script>
 // 앱으로 옮길 때: 아래에 배포 URL(.../exec)을 넣으면 google.script.run 대신 fetch 로 같은 서버를 부릅니다.
-const API_URL = "https://script.google.com/macros/s/AKfycbzQe9w9TpToaAoiQtKO4MgyL2dcwdSIBuyHsy_twYojd2fNIDnuegr1wOrV1eplDVxx/exec";
+const API_URL = "https://sword-api.ruddls0814.workers.dev";
 const TIERS=[{n:"녹슨 등급",c:"--t0",to:4},{n:"강철 등급",c:"--t1",to:9},{n:"청광 등급",c:"--t2",to:14},{n:"자광 등급",c:"--t3",to:17},{n:"황금 등급",c:"--t4",to:20}];
 const tierOf=l=>TIERS.find(t=>l<=t.to);
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -473,13 +473,12 @@ function gameUrl(){return (window.google&&google.script)?(META&&META.url)||"":lo
 function call(action,data){const payload=Object.assign({token:TOKEN},data||{});
   if(window.google&&google.script&&google.script.run)return new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(e=>rej(e)).api(action,payload));
   const body=JSON.stringify(Object.assign({action},payload));const go=()=>{const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),25000);return fetch(API_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body,redirect:"follow",signal:ac.signal}).then(r=>r.json()).finally(()=>clearTimeout(tm))};if(!SAFE_RETRY[action])return go();return go().catch(()=>new Promise(r=>setTimeout(r,1000)).then(go))}
-const SAFE_RETRY={live:1,board:1,me:1,bootstrap:1,sprite:1,dex:1,rooms:1,watch:1};
+const SAFE_RETRY={live:1,board:1,me:1,bootstrap:1,dex:1,rooms:1,watch:1};
 
 const SPR={},SPRP={},SPRFAIL={};
-try{Object.keys(localStorage).filter(k=>(k.startsWith("spr2_")||k.startsWith("spr3_"))).forEach(k=>localStorage.removeItem(k))}catch(e){}
+try{Object.keys(localStorage).filter(k=>/^spr\d_/.test(k)).forEach(k=>localStorage.removeItem(k))}catch(e){}
 function getSprite(i){if(i==null||i<0)return Promise.resolve(null);if(SPR[i])return Promise.resolve(SPR[i]);if(SPRP[i])return SPRP[i];
-  try{const v=localStorage.getItem("spr4_"+i);if(v){SPR[i]=v;return Promise.resolve(v)}}catch(e){}
-  SPRP[i]=call("sprite",{line:i}).then(r=>{if(!r||!r.ok){SPRFAIL[i]=true;setTimeout(()=>{delete SPRFAIL[i]},60000);return null}const u="data:image/webp;base64,"+r.b64;SPR[i]=u;try{localStorage.setItem("spr4_"+i,u)}catch(e){}return u}).catch(()=>null).finally(()=>{delete SPRP[i]});return SPRP[i]}
+  const u="sprites/"+i+".webp?v=1";SPRP[i]=new Promise(res=>{const im=new Image();im.onload=()=>{SPR[i]=u;res(u)};im.onerror=()=>{SPRFAIL[i]=true;setTimeout(()=>{delete SPRFAIL[i]},60000);res(null)};im.src=u}).finally(()=>{delete SPRP[i]});return SPRP[i]}
 function setArt(el,line,lv){const idx=Math.max(0,Math.min(19,lv-1));el.style.backgroundPosition=`${(idx%5)*25}% ${Math.floor(idx/5)*(100/3)}%`;
   if(SPR[line]){el.style.backgroundImage=`url(${SPR[line]})`;el.classList.remove("loading");return}
   el.classList.add("loading");const want=line+":"+lv;el.dataset.want=want;getSprite(line).then(u=>{if(el.dataset.want!==want)return;if(u){el.style.backgroundImage=`url(${u})`;el.classList.remove("loading")}else{el.classList.remove("loading");if(el.id==="art"){el.hidden=true;$("sword").style.display=""}}})}
@@ -941,8 +940,17 @@ function enterChannel(){if(inChannel||!ST)return;inChannel=true;sendWatch();watc
 function leaveChannel(){if(!inChannel)return;inChannel=false;clearInterval(watchTimer);sendWatch(true)}
 addEventListener("pagehide",()=>{if(inChannel)sendWatch(true)});
 let LIVE_P=null,LIVE_FAIL=0;
-function startLive(){if(liveTimer)return;liveTimer=true;const loop=async()=>{if(document.visibilityState==="visible")await pollLive();const d=Math.min(20000,3000*Math.pow(2,LIVE_FAIL));setTimeout(loop,d)};loop()}
-function pollLive(){if(LIVE_P)return LIVE_P;LIVE_P=pollLive0().finally(()=>{LIVE_P=null});return LIVE_P}
+let WS=null,WS_OK=false,WS_TRY=0;
+function openWS(){if(WS)return;try{WS=new WebSocket(API_URL.replace(/^http/,"ws").replace(/\/+$/,"")+"/ws")}catch(e){WS=null;return}
+  WS.onopen=()=>{WS_OK=true;WS_TRY=0;pollLive()};
+  WS.onmessage=e=>{if(e.data==="live")pollLive()};
+  WS.onclose=()=>{WS_OK=false;WS=null;setTimeout(openWS,Math.min(30000,1000*Math.pow(2,WS_TRY++)))};
+  WS.onerror=()=>{try{WS.close()}catch(e){}}}
+setInterval(()=>{if(WS_OK&&document.visibilityState==="visible")try{WS.send("ping")}catch(e){}},25000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&liveTimer){if(!WS)openWS();pollLive()}});
+function startLive(){if(liveTimer)return;liveTimer=true;openWS();const loop=async()=>{if(document.visibilityState==="visible")await pollLive();const d=WS_OK?30000:Math.min(20000,3000*Math.pow(2,LIVE_FAIL));setTimeout(loop,d)};loop()}
+let LIVE_AGAIN=false;
+function pollLive(){if(LIVE_P){LIVE_AGAIN=true;return LIVE_P}LIVE_P=pollLive0().finally(()=>{LIVE_P=null;if(LIVE_AGAIN){LIVE_AGAIN=false;pollLive()}});return LIVE_P}
 async function pollLive0(){try{const r=await call("live",{since:Math.max(LSEQ,0),chatSince:Math.max(CSEQ,0),room:ROOM.id,roomPw:ROOMPW});if(r&&r.roomError&&ROOM.id!=="lobby"){toast(r.roomError+" · 전체 방으로 이동합니다");try{localStorage.removeItem("roomPw_"+ROOM.id)}catch(e){}setRoom({id:"lobby",name:"전체"});return}if(!r||!r.ok){LIVE_FAIL=Math.min(3,LIVE_FAIL+1);return}LIVE_FAIL=0;handleChat(r);
   const first=LSEQ<0;LSEQ=r.seq;if(r.min)PUBLIC_MIN=r.min;if(inChannel&&r.watchers)showWatchers(r.watchers);
   r.ev.forEach(e=>{addLiveLog(e);if(!first)showLive(e)});

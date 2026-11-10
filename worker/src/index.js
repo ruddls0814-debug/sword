@@ -83,7 +83,8 @@ function sha256Bytes(str) {
 }
 const Utilities = {
   DigestAlgorithm: { SHA_256: "SHA_256" },
-  computeDigest: (alg, s) => sha256Bytes(String(s)),
+  // 구글 서버는 문자열의 한글 등 비ASCII 글자를 '?' 로 바꿔 계산했습니다. 기존 비밀번호와 맞추려고 똑같이 합니다
+  computeDigest: (alg, s) => sha256Bytes(String(s).replace(/[^\x00-\x7f]/g, '?')),
   base64Encode: b => { const a = typeof b === "string" ? Array.from(new TextEncoder().encode(b)) : b; let s = ""; a.forEach(x => s += String.fromCharCode(x & 255)); return btoa(s); },
   getUuid: () => crypto.randomUUID(),
   formatDate(d, tz, f) {   // 이 게임은 한국 시간만 씁니다
