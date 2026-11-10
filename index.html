@@ -257,6 +257,12 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
 .highbar .mini{width:56px;height:56px}
 .highbar b{display:block;color:var(--t4);font-family:var(--f-display);font-weight:400;font-size:20px}
 .highbar span{font-size:14px}
+
+.boom{position:fixed;inset:0;z-index:38;display:grid;place-items:center;background:rgba(10,0,0,.55);padding:24px}
+.boom img{max-width:min(420px,88vw);max-height:70vh;border-radius:14px;animation:boomIn .5s cubic-bezier(.2,1.6,.4,1),boomShake .5s .5s 2}
+@keyframes boomIn{0%{transform:scale(.2) rotate(-12deg);opacity:0}100%{transform:none;opacity:1}}
+@keyframes boomShake{25%{transform:translate(-8px,4px) rotate(-2deg)}75%{transform:translate(8px,-4px) rotate(2deg)}}
+@media (prefers-reduced-motion:reduce){.boom img{animation:none}}
 </style>
 </head>
 <body>
@@ -379,6 +385,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
 <div class="gate" id="bragBox" hidden><div class="bragwrap"><p class="bh">이미지를 <b>길게 눌러</b> 저장하거나 공유해서 카톡방에 보내세요.</p><img id="bragImg" alt="내 검 자랑 카드"><button class="btn hot" type="button" id="bragShare" style="font-size:17px">① 사진 보내기</button><button class="btn hot" type="button" id="bragLink" style="font-size:17px;background:linear-gradient(180deg,#fee500,#e6cf00);color:#1d1600">② 자랑 문구 + 게임 링크 보내기</button><p class="bh" id="bragTip">사진을 보낸 뒤 ②로 설명 문구와 게임 링크를 이어서 보내세요. 링크는 카톡에서 미리보기 카드로 보입니다.</p><button class="btn" type="button" id="bragClose">닫기</button></div></div>
 <div class="gate" id="othersDex" hidden><div class="bragwrap" style="width:min(640px,100%)"><div class="panel" style="padding:14px" id="othersBody"></div><button class="btn" type="button" id="othersClose">닫기</button></div></div>
 <div class="highbar" id="highbar" hidden><span class="mini" id="highArt"></span><div><b id="highTitle">고강 성공!</b><span id="highText"></span></div></div>
+<div class="boom" id="boom" hidden><img id="boomImg" alt="검이 터져서 없어졌습니다"></div>
 <div class="toast" id="toast"></div>
 <script>
 // 앱으로 옮길 때: 아래에 배포 URL(.../exec)을 넣으면 google.script.run 대신 fetch 로 같은 서버를 부릅니다.
@@ -496,13 +503,16 @@ function quipFor(kind,lv,before,name,desc,prevName,prevDesc){
   if(kind==="sell")return quip("sell",{name:prevName});
   if(kind==="aid")return quip("broke",{});
   return ""}
+const BOOM_IMGS=["https://ruddls0814-debug.github.io/sword/destroy1.webp","https://ruddls0814-debug.github.io/sword/destroy2.webp"];
+BOOM_IMGS.forEach(u=>{const i=new Image();i.src=u});
+function showBoom(){const b=$("boom");$("boomImg").src=BOOM_IMGS[Math.floor(Math.random()*BOOM_IMGS.length)];b.hidden=false;clearTimeout(showBoom.h);showBoom.h=setTimeout(()=>b.hidden=true,2800)}
 const tierN=l=>l>=20?5:l>=15?4:l>=10?3:l>=5?2:1;
 function fx(kind,before){const qq=quipFor(kind,ST.lv,before,ST.name,descOf(ST.lv,ST.line),PREV.name,PREV.desc);if(qq)say(qq);const lv=ST.lv,tc=ST.hidden?css("--t4"):css(tierOf(Math.max(lv,1)).c);
   if(kind==="success"){result(`성공! +${lv}`,"var(--ok)","pop");fxSuccess(tierN(lv),tc,lv%5===0);sfx("success",tierN(lv))}
   else if(kind==="hidden"){result(`히든 발견! +${lv}`,"var(--warn)","pop");fxSuccess(4,css("--t4"),true);sfx("success",5)}
   else if(kind==="keep"){result("유지","var(--warn)","shake");fxKeep(tierN(before));sfx("keep",tierN(before))}
   else if(kind==="saved"){result("방지권이 막았습니다","var(--warn)","shake");fxShield(tierN(before));sfx("shield")}
-  else if(kind==="destroy"){result("파괴되었습니다","var(--bad)","shake");fxDestroy(tierN(before));sfx("destroy",tierN(before))}
+  else if(kind==="destroy"){result("파괴되었습니다","var(--bad)","shake");fxDestroy(tierN(before));sfx("destroy",tierN(before));setTimeout(showBoom,250)}
   else if(kind==="sell"){result("판매 완료","var(--warn)","pop");fxCoins(Math.min(5,tierN(before)));sfx("coin",3+tierN(before))}
   else if(kind==="aid"){result("지원금 도착","var(--warn)","pop");fxCoins(3);sfx("coin",6)}
   else if(kind==="win"){result("배틀 승리","var(--ok)","pop");fxSuccess(2,css("--ok"),false);sfx("success",2);showTab("log")}
@@ -748,6 +758,7 @@ $("shareBtn").onclick=async()=>{if(!ST)return;const btn=$("shareBtn");btn.disabl
     try{const f=new File([BRAG],"my-sword.png",{type:"image/png"});if(navigator.canShare&&navigator.canShare({files:[f]})){copyText(t);await navigator.share({files:[f],title:"검키우기 대장간",text:t});return}}catch(e){if(e&&e.name==="AbortError")return}
     $("bragImg").src=cv2.toDataURL("image/png");$("bragBox").hidden=false}
   finally{btn.disabled=false;btn.textContent=old}};
+$("boom").onclick=()=>{$("boom").hidden=true};
 $("othersClose").onclick=()=>{$("othersDex").hidden=true};
 $("bragClose").onclick=()=>{$("bragBox").hidden=true};
 async function copyText(t){try{await navigator.clipboard.writeText(t);return true}catch(e){return false}}
