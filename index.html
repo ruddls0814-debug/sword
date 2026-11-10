@@ -278,6 +278,38 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
 .room .acts{display:flex;gap:6px}.room button{border-radius:10px;padding:7px 12px;font-weight:700;border:1px solid var(--ember);color:var(--ember);background:var(--soot)}
 .room button.del{border-color:var(--ash);color:var(--dim)}
 .room.cur{background:rgba(255,122,47,.08);border-radius:8px;padding-inline:6px}
+.arena{position:fixed;inset:0;z-index:45;display:grid;place-items:center;background:radial-gradient(ellipse at center,#3a1a0a,#0b0705 75%);overflow:hidden;cursor:pointer}
+.arena .ring{position:relative;width:min(560px,100%);height:min(460px,82vh);padding-top:70px;display:grid;grid-template-columns:1fr 1fr;align-items:center}
+.arena .ftr{display:grid;justify-items:center;gap:8px;position:relative;transition:transform .16s cubic-bezier(.3,1.6,.6,1),opacity .4s,filter .3s}
+.arena .ftr .art{width:min(38vw,190px);height:min(38vw,190px)}
+.arena .ftr .lb{font-weight:800;font-size:15px;text-align:center;line-height:1.25;max-width:42vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arena .ftr .lb small{display:block;font-weight:600;color:var(--dim);font-size:12px}
+.arena .ftr .ph{display:grid;place-items:center;width:min(38vw,190px);height:min(38vw,190px);font-size:64px}
+.arena .L{transform:translateX(-120%)}.arena .R{transform:translateX(120%)}
+.arena.in .L,.arena.in .R{transform:none}
+.arena .L .art,.arena .L .ph{transform:rotate(-7deg)}.arena .R .art,.arena .R .ph{transform:rotate(7deg)}
+.arena .ftr .art{border:2px solid rgba(255,190,110,.35)}
+.arena .L.hit{transform:translateX(22%) rotate(8deg)}.arena .R.hit{transform:translateX(-22%) rotate(-8deg)}
+.arena .L.back{transform:translateX(-12%)}.arena .R.back{transform:translateX(12%)}
+.arena .ftr.lose{animation:knock .9s ease-in forwards}.arena .R.lose{animation-name:knockR}
+@keyframes knock{0%{transform:none}25%{transform:translateX(-30%) rotate(-25deg)}100%{transform:translate(-35%,22%) rotate(-38deg);opacity:.4;filter:grayscale(1) brightness(.6)}}
+@keyframes knockR{0%{transform:none}25%{transform:translateX(30%) rotate(25deg)}100%{transform:translate(35%,22%) rotate(38deg);opacity:.4;filter:grayscale(1) brightness(.6)}}
+.arena .ftr.winr{filter:drop-shadow(0 0 22px var(--warn))}
+.arena .vs{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(0);font-family:var(--f-display);font-size:64px;color:var(--warn);text-shadow:0 0 18px rgba(255,140,40,.8);transition:transform .3s cubic-bezier(.3,1.8,.5,1),opacity .3s;pointer-events:none;z-index:3}
+.arena.in .vs{transform:translate(-50%,-50%) scale(1)}.arena.fight .vs{opacity:0}
+.arena .banner{position:absolute;left:0;right:0;top:0;text-align:center;font-family:var(--f-display);font-size:46px;opacity:0;transform:scale(.6);transition:all .35s cubic-bezier(.3,1.8,.5,1);z-index:3;pointer-events:none}
+.arena .banner.on{opacity:1;transform:none}
+.arena .banner small{display:block;font-family:inherit;font-size:18px;font-weight:800;margin-top:4px}
+.arena .tag{position:absolute;left:50%;top:-6px;transform:translateX(-50%);font-weight:800;font-size:22px;white-space:nowrap;opacity:0;transition:opacity .3s,top .5s}
+.arena .tag.on{opacity:1;top:-34px}
+.arena .spark{position:absolute;left:50%;top:50%;width:7px;height:7px;border-radius:50%;background:#fff3c4;box-shadow:0 0 10px 3px #ffb03a;pointer-events:none;z-index:2;animation:spark .55s ease-out forwards}
+@keyframes spark{from{transform:translate(-50%,-50%)}to{transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) scale(.2);opacity:0}}
+.arena .flashc{position:absolute;left:50%;top:50%;width:200px;height:200px;margin:-100px;border-radius:50%;background:radial-gradient(circle,rgba(255,250,220,.95),rgba(255,160,40,.5) 40%,transparent 70%);pointer-events:none;animation:flc .3s ease-out forwards;z-index:2}
+@keyframes flc{from{transform:scale(.3);opacity:1}to{transform:scale(1.6);opacity:0}}
+.arena.shake .ring{animation:ashk .25s}
+@keyframes ashk{0%,100%{transform:none}25%{transform:translate(-7px,3px)}50%{transform:translate(6px,-4px)}75%{transform:translate(-3px,5px)}}
+.arena .skip{position:absolute;bottom:max(18px,env(safe-area-inset-bottom));left:0;right:0;text-align:center;color:var(--dim);font-size:12px}
+@media (prefers-reduced-motion:reduce){.arena .ftr{transition:none}.arena.shake .ring{animation:none}}
 .appdl{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:7px 12px;font-size:13px;font-weight:700;background:linear-gradient(180deg,#2c3f2a,#1e2c1d);border:1px solid #4f7a4a;color:#cfeec9}
 .appdl.big{justify-content:center;width:100%;padding:12px;font-size:15px;border-radius:14px}
 .isheet{width:min(400px,100%);background:var(--soot);border:1px solid var(--ash);border-radius:20px;padding:20px;display:grid;gap:12px}
@@ -523,12 +555,49 @@ async function openOthersDex(id,nick){$("othersDex").hidden=false;const b=$("oth
 function renderStats(){const rate=ST.tries?Math.round(ST.ok/ST.tries*100):0;
   $("stats").innerHTML=[["강화 시도",ST.tries],["성공률",rate+"%"],["파괴",ST.broke],["판매",ST.sold],["배틀 승",ST.wins],["방어 승",ST.defWins||0]].map(([k,v])=>`<div><span>${k}</span><b>${typeof v==="number"?fmt(v):v}</b></div>`).join("")}
 
+// ── 배틀 연출: 내 검(왼쪽)과 상대 검(오른쪽)이 세 번 부딪친 뒤 승부가 납니다 ──
+function playBattle(b){return new Promise(done=>{
+  const A=document.createElement("div");A.className="arena";A.setAttribute("role","dialog");A.setAttribute("aria-label","배틀");
+  const mk=(side,p)=>{const f=document.createElement("div");f.className="ftr "+side;
+    if(p.line!=null&&p.lv>0){const a=document.createElement("div");a.className="art";setArt(a,p.line,p.lv);const c=css(tierOf(p.lv).c);a.style.filter=`drop-shadow(0 0 ${8+p.lv}px ${c})`;f.append(a)}
+    else{const ph=document.createElement("div");ph.className="ph";ph.textContent="🪵";f.append(ph)}
+    const lb=document.createElement("div");lb.className="lb";lb.textContent=p.nick;const sm=document.createElement("small");sm.textContent="+"+p.lv+(p.line!=null?" "+nameOf(p.lv,p.line):"");lb.append(sm);f.append(lb);
+    const tg=document.createElement("div");tg.className="tag";f.append(tg);return f};
+  const ring=document.createElement("div");ring.className="ring";const L=mk("L",b.me),R=mk("R",b.foe);
+  const vs=document.createElement("div");vs.className="vs";vs.textContent="VS";
+  const bn=document.createElement("div");bn.className="banner";
+  ring.append(L,R,vs,bn);A.append(ring);const sk=document.createElement("div");sk.className="skip";sk.textContent="화면을 누르면 건너뜁니다";A.append(sk);
+  document.body.append(A);
+  const T=[];const at=(ms,fn)=>T.push(setTimeout(fn,ms));let ended=false;
+  const end=()=>{if(ended)return;ended=true;T.forEach(clearTimeout);A.remove();done()};
+  A.onclick=end;
+  const snd=(v,r,s)=>{try{if(SOUND)strike(0,v,r,s)}catch(e){}};
+  const clash=(big)=>{L.classList.remove("back");R.classList.remove("back");L.classList.add("hit");R.classList.add("hit");
+    setTimeout(()=>{snd(big?.5:.35,big?.6:.3,big?.6:1+Math.random()*.2);
+      const fl=document.createElement("div");fl.className="flashc";ring.append(fl);setTimeout(()=>fl.remove(),320);
+      for(let i=0;i<(big?26:14);i++){const s=document.createElement("div");s.className="spark";const a=Math.random()*Math.PI*2,d=50+Math.random()*(big?170:110);s.style.setProperty("--x",Math.cos(a)*d+"px");s.style.setProperty("--y",Math.sin(a)*d+"px");ring.append(s);setTimeout(()=>s.remove(),600)}
+      A.classList.remove("shake");void A.offsetWidth;A.classList.add("shake");
+      if(navigator.vibrate)try{navigator.vibrate(big?60:25)}catch(e){}},140);
+    if(!big)setTimeout(()=>{L.classList.remove("hit");R.classList.remove("hit");L.classList.add("back");R.classList.add("back")},300)};
+  at(30,()=>A.classList.add("in"));
+  at(650,()=>{A.classList.add("fight")});
+  at(750,()=>clash(false));at(1250,()=>clash(false));at(1700,()=>clash(false));
+  at(2200,()=>clash(true));
+  at(2550,()=>{const W=b.win?L:R,Lo=b.win?R:L;W.classList.remove("hit","back");Lo.classList.remove("hit","back");
+    Lo.classList.add("lose");W.classList.add("winr");
+    bn.textContent=b.win?"승리!":"패배…";bn.style.color=b.win?"var(--ok)":"var(--bad)";bn.classList.add("on");
+    const sub=document.createElement("small");sub.textContent=(b.win?"상대 검이 ":"내 검이 ")+(b.drop?"-1강 떨어졌다!":"버텨 냈다!");sub.style.color=b.drop?"var(--bad)":"var(--warn)";bn.append(sub);
+    const tg=Lo.querySelector(".tag");tg.textContent=b.drop?"-1":"버팀";tg.style.color=b.drop?"var(--bad)":"var(--warn)";tg.classList.add("on");
+    try{if(SOUND){if(b.win)sfx("success",2);else sfx("destroy",1)}}catch(e){}});
+  at(4000,end);
+})}
 function setBusy(on){BUSY=on;["upBtn","sellBtn","buyScroll","aidBtn"].forEach(i=>$(i).classList.toggle("busy",on));$("upLabel").innerHTML=on?'<span class="hammer">🔨</span>':"강화"}
 async function act(action,data){if(BUSY||!ST)return;setBusy(true);
   try{const r=await call(action,data);
     if(!r.ok){if(r.needLogin){showGate();return}result(r.error,"var(--dim)","shake");toast(r.error);if(r.state){ST=r.state;render()}return}
     const before=ST.lv;PREV={name:ST&&ST.name,desc:ST&&descOf(ST.lv,ST.line)};
     if(data&&data.public){LSEQ_SELF=true;await pollLive();setTimeout(()=>{ST=r.state;fx(r.fx,before);render();renderMyPublic();refreshBoard()},1250);return}
+    if(r.battle){try{await playBattle(r.battle)}catch(e){}}
     ST=r.state;fx(r.fx,before);render();refreshBoard()}
   catch(e){result("연결이 불안정합니다","var(--dim)","shake");toast("잠시 뒤 다시 시도하세요")}
   finally{setBusy(false);renderBoard()}}
@@ -555,8 +624,8 @@ function fx(kind,before){const qq=quipFor(kind,ST.lv,before,ST.name,descOf(ST.lv
   else if(kind==="destroy"){result("파괴되었습니다","var(--bad)","shake");fxDestroy(tierN(before));sfx("destroy",tierN(before));setTimeout(showBoom,250)}
   else if(kind==="sell"){result("판매 완료","var(--warn)","pop");fxCoins(Math.min(5,tierN(before)));sfx("coin",3+tierN(before))}
   else if(kind==="aid"){result("지원금 도착","var(--warn)","pop");fxCoins(3);sfx("coin",6)}
-  else if(kind==="win"){result("배틀 승리","var(--ok)","pop");fxSuccess(2,css("--ok"),false);sfx("success",2);showTab("log")}
-  else if(kind==="lose"){result("배틀 패배 · 검 -1","var(--bad)","shake");fxDestroy(1);sfx("destroy",1);showTab("log")}
+  else if(kind==="win"){result("배틀 승리","var(--ok)","pop");fxSuccess(2,css("--ok"),false);showTab("log")}
+  else if(kind==="lose"){result(ST.lv<before?"배틀 패배 · 검 -1":"배틀 패배 · 검은 버팀","var(--bad)","shake");if(ST.lv<before)fxDestroy(1);showTab("log")}
   else result("","")}
 let sellArmed=0;
 function doSell(){if(!ST||!ST.lv||BUSY)return;
