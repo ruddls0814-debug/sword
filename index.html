@@ -617,7 +617,12 @@ function quipFor(kind,lv,before,name,desc,prevName,prevDesc){
   return ""}
 const BOOM_IMGS=["https://ruddls0814-debug.github.io/sword/destroy1.webp","https://ruddls0814-debug.github.io/sword/destroy2.webp"];
 BOOM_IMGS.forEach(u=>{const i=new Image();i.src=u});
-function showBoom(){const b=$("boom");b.onclick=()=>{b.hidden=true;clearTimeout(showBoom.h)};$("boomImg").src=BOOM_IMGS[Math.floor(Math.random()*BOOM_IMGS.length)];b.hidden=false;clearTimeout(showBoom.h);showBoom.h=setTimeout(()=>b.hidden=true,2800)}
+// 파괴 때 고양이 사진(destroy2)이 나오면 같이 나오는 소리
+const CAT_IDX=1,CAT_URL="https://ruddls0814-debug.github.io/sword/destroy_cat.mp3";let CAT_BUF=null,CAT_P=null;
+function loadCat(){const a=ac();if(!a)return null;if(CAT_BUF)return Promise.resolve(CAT_BUF);if(CAT_P)return CAT_P;
+  CAT_P=fetch(CAT_URL).then(r=>r.arrayBuffer()).then(buf=>new Promise((res,rej)=>a.decodeAudioData(buf,res,rej))).then(x=>{CAT_BUF=x;return x}).catch(()=>{CAT_P=null;return null});return CAT_P}
+async function playCat(){if(!SOUND)return;const a=ac();if(!a)return;const buf=await loadCat();if(!buf)return;try{const src=a.createBufferSource(),g=a.createGain();src.buffer=buf;g.gain.value=.9;src.connect(g).connect(bus());src.start()}catch(e){}}
+function showBoom(){const b=$("boom");b.onclick=()=>{b.hidden=true;clearTimeout(showBoom.h);cutSfx()};const k=Math.floor(Math.random()*BOOM_IMGS.length);$("boomImg").src=BOOM_IMGS[k];b.hidden=false;clearTimeout(showBoom.h);const cat=k===CAT_IDX;if(cat)playCat();showBoom.h=setTimeout(()=>b.hidden=true,cat?3200:2800)}
 const tierN=l=>l>=20?5:l>=15?4:l>=10?3:l>=5?2:1;
 function fx(kind,before){if(parts.length>160)parts=parts.slice(-160);if(rings.length>3)rings=rings.slice(-3);const qq=quipFor(kind,ST.lv,before,ST.name,descOf(ST.lv,ST.line),PREV.name,PREV.desc);if(qq)say(qq);const lv=ST.lv,tc=ST.hidden?css("--t4"):css(tierOf(Math.max(lv,1)).c);
   if(kind==="success"){result(`성공! +${lv}`,"var(--ok)","pop");fxSuccess(tierN(lv),tc,lv%5===0);sfx("success",tierN(lv))}
@@ -828,7 +833,7 @@ function run(){if(running)return;running=true;(function f(){cx.clearRect(0,0,cv.
 function burst(col,n){fxSuccess(1,col,false)}
 let LAST_TAP=0;
 function enhanceTap(){const now=Date.now();if(now-LAST_TAP<200||BUSY||!ST||ST.lv>=META.max)return;LAST_TAP=now;
-  cutSfx();sfx("hammer");act("enhance",{useScroll:$("useScroll").checked},{minMs:560})}
+  cutSfx();sfx("hammer");if(!CAT_BUF)loadCat();act("enhance",{useScroll:$("useScroll").checked},{minMs:560})}
 $("upBtn").onclick=e=>{e.currentTarget.blur();enhanceTap()};
 $("sellBtn").onclick=doSell;
 $("fightBtn").onclick=()=>{showTab("arena");$("p-arena").scrollIntoView({behavior:"smooth",block:"nearest"})};
