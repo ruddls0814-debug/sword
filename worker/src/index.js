@@ -709,6 +709,7 @@ function battle_(st, req, out, row) {
     say_(st,out,`배틀 승리!${mt} ${foe.nickname}의 +${foeLv} ${fName}을(를) 꺾고 ${fmt(pz)} G를 받았습니다. ${d ? `상대 검이 +${fst.lv}로 떨어졌습니다.` : '상대 검은 버텨 냈습니다.'} (오늘 남은 배틀 ${BATTLE_PER_DAY-dl.battles}회)`,'ok'); out.fx='win';
     out.battle = {win:true, drop:d, mt:m, me:{nick:row.nickname, line:st.line, lv:myLv}, foe:{nick:foe.nickname, line:foeLine0, lv:foeLv}};
     feed_(`${row.nickname}님(+${myLv})이 ${foe.nickname}님(+${foeLv})을 이겼습니다.${d ? ` ${foe.nickname}님의 검이 +${fst.lv}로 떨어졌습니다.` : ''}`);
+    if (d) livePush_({type:'drop', to:foe.id, id:row.id, nick:row.nickname, byLv:myLv, from:foeLv, lv:fst.lv, name:nameOf(fst.lv, fst.line), line:fst.line});   // 상대가 접속 중이면 바로 알림
   } else {
     st.losses++; st.gold -= f; fst.gold += f; fst.defWins = (fst.defWins||0)+1;
     const myLine0 = st.line, d = drop_(st);
