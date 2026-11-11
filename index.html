@@ -1140,7 +1140,7 @@ async function loadAdmin(){const box=$("adminBox");box.innerHTML='<p class="empt
     $("giveBtn").onclick=async()=>{const id=$("giveTo").value,amt=Number(String($("giveAmt").value).replace(/[,\s]/g,""));if(!id||!amt){toast("받는 사람과 금액을 넣어 주세요");return}
       const gb=$("giveBtn");if(gb.dataset.arm!=="1"){gb.dataset.arm="1";gb.textContent="확인";setTimeout(()=>{gb.dataset.arm="";gb.textContent="보내기"},3000);toast(`${$("giveTo").selectedOptions[0].textContent.split(" · ")[0]}님에게 ${fmt(amt)} G — 한 번 더 누르면 보냅니다`);return}
       gb.dataset.arm="";gb.textContent="보내기";const q=await call("give",{id,amount:amt,memo:$("giveMemo").value});toast(q.ok?`${q.nickname}님 잔액 ${fmt(q.gold)} G`:q.error);if(q.ok){$("giveAmt").value="";$("giveMemo").value="";loadMe();loadAdmin()}};
-    buildEvent(box);buildHistory(box);buildPitr(box);
+    buildStorage(box);buildEvent(box);buildHistory(box);buildPitr(box);
     const h=document.createElement("p");h.className="note";h.textContent=`승인 대기 ${r.list.length}명`;box.append(h);
     if(!r.list.length){const e=document.createElement("p");e.className="empty";e.textContent="기다리는 신청이 없습니다.";box.append(e)}
     r.list.forEach(x=>{const d=document.createElement("div");d.className="pend";d.innerHTML='<div class="meta"><b></b><span></span></div><div class="b2"><button class="no">거절</button><button class="ok">승인</button></div>';
@@ -1211,6 +1211,12 @@ async function yachaEvent(e){
   if(e.type==="yachaNo"){if(YA.out&&YA.out.cid===e.cid)yachaOutEnd(e.why==="nosword"?"검이 +0이 되어 야차 배틀이 취소되었습니다":`${e.nick}님이 야차 배틀을 거절했습니다`,false);return}
   if(e.type==="yachaDone"){if(YA.out&&YA.out.cid===e.cid)yachaOutEnd("",false);try{await playBattle(e.battle)}catch(x){}const q=await call("me").catch(()=>null);if(q&&q.ok){const before=ST.lv;ST=q.state;fx(e.battle.win?"win":"lose",before);render();refreshBoard()}}}
 
+// ── 서버 저장소 상태 ──
+function buildStorage(box){const w=document.createElement("div");w.className="give";w.innerHTML='<b>🗄️ 서버 저장소</b><p class="hint" id="stoInfo">불러오는 중…</p>';box.append(w);
+  const mb=b=>(b/1048576).toFixed(b<1048576?2:1)+" MB";
+  call("storage").then(r=>{const el=$("stoInfo");if(!r||!r.ok){el.textContent=(r&&r.error)||"아직 서버에 이 기능이 없습니다 (몇 분 뒤 다시 열어 보세요)";return}
+    const c=r.cells||{},pl=c.players||{},ch=c.chat||{};
+    el.textContent=`전체 ${mb(r.size)} / 안전 한도 1 GB (${(r.size/r.limit*100).toFixed(3)}% 사용) · 플레이어 ${pl.rows||0}줄 · 채팅 ${ch.rows||0}줄 · 기록 ${fmt(r.hist.rows)}줄(${mb(r.hist.bytes)}) · 임시 값 ${r.kv.rows}개 · 지금 연결 ${r.sockets}명`}).catch(()=>{$("stoInfo").textContent="불러오지 못했습니다"})}
 // ── 강화 확률 이벤트 열기 ──
 function buildEvent(box){const w=document.createElement("div");w.className="give";
   w.innerHTML=`<b>🎉 강화 확률 이벤트</b><div id="evNow" class="hint"></div>
@@ -1703,7 +1709,7 @@ async function openHunt(){if(META&&!META.dungeons){try{const m=await call("boots
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794420706;
+const BUILD=1794421705;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
