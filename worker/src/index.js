@@ -364,7 +364,7 @@ function say_(st, out, text, kind) {
 function api(action, req) {
   req = req || {};
   try {
-    if (action === 'bootstrap') return {ok:true, gift:{min:GIFT_MIN, fee:GIFT_FEE, perDay:GIFT_PER_DAY, dayMax:GIFT_DAY_MAX, ageH:GIFT_AGE_H}, dungeons:DUNGEONS, huntCapH:HUNT_CAP_H, buffs:BUFFS.map(b=>({key:b[0],name:b[1],n:b[2],desc:b[4]})), guardMax:GUARD_MAX, types:TYPE_OF, beats:BEATS, protectMax:PROTECT_MAX, lines:LINES.map(l=>({n:l.n,h:l.h,t:TYPE_OF[l.n]||'',names:l.names,desc:DESC[l.n]||[]})), baseDesc:BASE_DESC, odds:ODDS, base:BASE, max:MAX, url:(function(){try{return ScriptApp.getService().getUrl()}catch(e){return ''}})()};
+    if (action === 'bootstrap') return {ok:true, tapBonus:TAP_BONUS, gift:{min:GIFT_MIN, fee:GIFT_FEE, perDay:GIFT_PER_DAY, dayMax:GIFT_DAY_MAX, ageH:GIFT_AGE_H}, dungeons:DUNGEONS, huntCapH:HUNT_CAP_H, buffs:BUFFS.map(b=>({key:b[0],name:b[1],n:b[2],desc:b[4]})), guardMax:GUARD_MAX, types:TYPE_OF, beats:BEATS, protectMax:PROTECT_MAX, lines:LINES.map(l=>({n:l.n,h:l.h,t:TYPE_OF[l.n]||'',names:l.names,desc:DESC[l.n]||[]})), baseDesc:BASE_DESC, odds:ODDS, base:BASE, max:MAX, url:(function(){try{return ScriptApp.getService().getUrl()}catch(e){return ''}})()};
     if (action === 'register') return register_(req);
     if (action === 'login') return login_(req);
     if (action === 'board') return board_(req);
@@ -519,6 +519,7 @@ function enhance_(st, req, out, row) {
   if (useFree) B.free--; if (useLuck) B.luck--; if (useGuard) B.guard--;
   const before = st.lv, beforeName = nameOf(st.lv, st.line), beforeLine = st.line;
   let [s,d] = ODDS[st.lv]; if (useLuck) s = Math.min(100 - d, s + 5);
+  const tapHit = req.tap === true; if (tapHit) s = Math.min(100 - d, s + TAP_BONUS);   // 직접 두들기기 명중
   const r = Math.random()*100;
   if (r < s) {
     if (st.lv === 0) {
@@ -570,6 +571,7 @@ const HUNT_CAP_H = 8;                 // 접속하지 않아도 최대 8시간�
 const GOBLIN_EVERY = 10 * 60 * 1000;  // 사냥 10분마다 한 번
 const GOBLIN_P = 1 / 12;              // 그때 황금고블린이 나올 확률 (평균 2시간에 한 마리)
 const GUARD_MAX = 12;                 // 황금 방패는 +12 미만 강화에서만
+const TAP_BONUS = 5;                  // 직접 두들기기 미니게임 명중 시 성공 확률 +5%p
 // 황금고블린이 주는 버프 [key, 이름, 횟수, 가중치, 설명]
 const BUFFS = [
   ['guard', '황금 방패', 15, 30, `+${GUARD_MAX} 미만 강화에서 파괴가 나와도 유지`],
