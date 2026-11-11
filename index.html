@@ -384,6 +384,20 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
 .giftbox .gquick{display:flex;gap:6px}.giftbox .gquick .btn{flex:1;padding:8px;font-size:14px}
 .giftbox .gsum{margin:4px 0;font-size:13px}
 .giftbox .grow{display:flex;gap:8px}.giftbox .grow .btn{flex:1;font-size:17px}
+.tapgame{position:fixed;left:50%;transform:translateX(-50%);width:min(440px,calc(100% - 32px));z-index:30;background:var(--soot);border:1px solid var(--ember);border-radius:16px;padding:12px 14px 10px;box-shadow:0 10px 30px rgba(0,0,0,.5);touch-action:none;user-select:none;-webkit-user-select:none;cursor:pointer}
+.tapgame .ttop{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:800;margin-bottom:8px}
+.tapgame .ttop span{color:var(--dim);font-weight:700}
+.tapbar{position:relative;height:26px;border-radius:13px;background:linear-gradient(180deg,#2a2622,#1a1714);border:1px solid var(--ash);overflow:hidden}
+.tapbar .zone{position:absolute;top:0;bottom:0;background:linear-gradient(180deg,#ffe58a,#ffc21a);box-shadow:0 0 14px 3px rgba(255,200,40,.75);border-radius:6px;animation:tapglow 1s ease-in-out infinite alternate}
+@keyframes tapglow{to{box-shadow:0 0 22px 6px rgba(255,210,60,.95)}}
+.tapbar .mark{position:absolute;top:-3px;bottom:-3px;width:5px;margin-left:-2.5px;background:#fff;border-radius:3px;box-shadow:0 0 8px #fff}
+.tapgame p{margin:8px 0 0;font-size:13px;text-align:center;color:var(--bone)}
+.tapgame.hit{border-color:var(--warn)}.tapgame.hit p{color:var(--warn);font-weight:800}
+.tapgame.miss p{color:var(--dim)}
+.tapgame.hit .tapbar{animation:taphit .35s}
+@keyframes taphit{40%{transform:scale(1.04)}}
+#tapBtn[aria-pressed="true"]{color:var(--warn)}
+.smith #smithTxt{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:4.5em}
 .appdl{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:7px 12px;font-size:13px;font-weight:700;background:linear-gradient(180deg,#2c3f2a,#1e2c1d);border:1px solid #4f7a4a;color:#cfeec9}
 .appdl.big{justify-content:center;width:100%;padding:12px;font-size:15px;border-radius:14px}
 .isheet{width:min(400px,100%);background:var(--soot);border:1px solid var(--ash);border-radius:20px;padding:20px;display:grid;gap:12px}
@@ -440,9 +454,11 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
     <div class="opts">
       <label id="protLabel"><input type="checkbox" id="useScroll"> <span id="protText">파괴 방지</span></label>
       <div class="buffbar" id="buffBar" hidden></div>
+      <button class="link" id="tapBtn" type="button" aria-pressed="false">🔨 직접 두들기기 끔</button>
       <button class="link" id="soundBtn" type="button" aria-pressed="true">🔊 효과음 켬</button>
       <button class="link" id="shareBtn">📸 카톡 자랑하기</button>
     </div>
+    <div class="tapgame" id="tapGame" hidden role="dialog" aria-label="직접 두들기기"><div class="ttop">🔨 직접 두들기기<span id="tapLv">속도 1/10</span></div><div class="tapbar"><div class="zone" id="tapZone"></div><div class="mark" id="tapMark"></div></div><p id="tapMsg" aria-live="polite"></p></div>
     <div class="actions">
       <div class="row">
         <button class="btn" id="sellBtn">판매<small id="sellPrice">-</small></button>
@@ -940,7 +956,8 @@ function run(){if(running)return;running=true;(function f(){cx.clearRect(0,0,cv.
   cx.globalAlpha=1;if(parts.length||rings.length||rays)requestAnimationFrame(f);else{running=false;cx.clearRect(0,0,cv.width,cv.height)}})()}
 function burst(col,n){fxSuccess(1,col,false)}
 let LAST_TAP=0;
-function enhanceTap(){const now=Date.now();if(now-LAST_TAP<200||BUSY||!ST||ST.lv>=META.max)return;LAST_TAP=now;
+function enhanceTap(){const now=Date.now();if(TAP.active){stopTap();return}if(now-TAP.stopAt<450)return;if(now-LAST_TAP<200||BUSY||!ST||ST.lv>=META.max)return;LAST_TAP=now;
+  if(TAP_ON){startTap();return}
   cutSfx();sfx("hammer");if(!CAT_BUF)loadCat();act("enhance",{useScroll:$("useScroll").checked},{minMs:560})}
 $("upBtn").onclick=e=>{e.currentTarget.blur();enhanceTap()};
 $("sellBtn").onclick=doSell;
@@ -1230,6 +1247,38 @@ function openGift(p){if(!ST)return;const gi=META.gift||{min:100,fee:.05};
   const close=()=>box.remove();cancel.onclick=close;box.addEventListener("click",e=>{if(e.target===box)close()});
   ok.onclick=async()=>{if(ok.disabled)return;ok.disabled=true;close();await act("gift",{to:p.id,amount:amt(),note:note.value});renderGiftPane()}}
 
+// ── 직접 두들기기 미니게임 ──
+// 노란 구역은 매번 무작위 위치, 히트포인트가 좌우로 왕복. 맞추면 이번 강화 성공 확률 +5%p.
+// 연속으로 쓰면 1~10단계까지 빨라지고, 20초 쉬면 1단계로 돌아갑니다.
+const TAP_W=16, TAP_BASE=1.3, TAP_STEP=0.2, TAP_MAXLV=10, TAP_RESET=20000, TAP_TIMEOUT=6000;
+let TAP_ON=false;try{TAP_ON=localStorage.getItem("tapOn")==="1"}catch(e){}
+const TAP={active:false,raf:0,pos:0,dir:1,zone:[0,0],speed:0,lv:0,lastAt:0,start:0,last:0,stopAt:0,timer:0};
+function tapLevel(){if(Date.now()-TAP.lastAt>TAP_RESET)TAP.lv=0;return TAP.lv}
+function renderTapBtn(){const b=$("tapBtn");b.setAttribute("aria-pressed",String(TAP_ON));b.textContent=TAP_ON?"🔨 직접 두들기기 켬":"🔨 직접 두들기기 끔"}
+$("tapBtn").onclick=()=>{TAP_ON=!TAP_ON;try{localStorage.setItem("tapOn",TAP_ON?"1":"0")}catch(e){}renderTapBtn();if(!TAP_ON&&TAP.active)cancelTap("직접 두들기기를 껐습니다");toast(TAP_ON?"강화 버튼을 누르면 미니게임이 시작됩니다":"직접 두들기기를 껐습니다")};
+renderTapBtn();
+function placeTap(){const a=document.querySelector(".actions");const fixed=a&&getComputedStyle(a).position==="fixed";$("tapGame").style.bottom=(fixed?a.getBoundingClientRect().height+10:24)+"px"}
+function startTap(){const lv=tapLevel();const z0=4+Math.random()*(92-TAP_W);TAP.zone=[z0,z0+TAP_W];
+  TAP.speed=(100/TAP_BASE)*(1+TAP_STEP*lv);TAP.pos=Math.random()*100;TAP.dir=Math.random()<.5?1:-1;TAP.active=true;TAP.start=TAP.last=performance.now();
+  const g=$("tapGame");g.hidden=false;g.classList.remove("hit","miss");placeTap();$("tapZone").style.left=z0+"%";$("tapZone").style.width=TAP_W+"%";
+  $("tapLv").textContent="속도 "+(lv+1)+"/"+TAP_MAXLV;$("tapMsg").textContent="노란 구역에서 멈추세요! (강화 버튼·화면 누르기·스페이스)";
+  clearTimeout(TAP.timer);TAP.timer=setTimeout(()=>cancelTap("시간 초과! 강화하지 않았습니다"),TAP_TIMEOUT);
+  const step=t=>{if(!TAP.active)return;const dt=Math.min(.05,(t-TAP.last)/1000);TAP.last=t;TAP.pos+=TAP.dir*TAP.speed*dt;
+    if(TAP.pos>100){TAP.pos=200-TAP.pos;TAP.dir=-1}if(TAP.pos<0){TAP.pos=-TAP.pos;TAP.dir=1}
+    $("tapMark").style.left=TAP.pos+"%";TAP.raf=requestAnimationFrame(step)};TAP.raf=requestAnimationFrame(step)}
+function cancelTap(msg){if(!TAP.active)return;TAP.active=false;cancelAnimationFrame(TAP.raf);clearTimeout(TAP.timer);$("tapGame").hidden=true;if(msg)toast(msg)}
+function stopTap(){if(!TAP.active)return;if(performance.now()-TAP.start<120)return;
+  TAP.active=false;cancelAnimationFrame(TAP.raf);clearTimeout(TAP.timer);TAP.stopAt=Date.now();
+  const hit=TAP.pos>=TAP.zone[0]&&TAP.pos<=TAP.zone[1];TAP.lv=Math.min(TAP_MAXLV-1,tapLevel()+1);TAP.lastAt=Date.now();
+  const g=$("tapGame");g.classList.add(hit?"hit":"miss");$("tapMsg").textContent=hit?"명중! 이번 강화 성공 확률 +"+((META&&META.tapBonus)||5)+"%":"빗나감… 보통 확률로 강화합니다";
+  try{if(SOUND)strike(0,hit?.3:.18,hit?.5:.2,hit?1.25:.7)}catch(e){}if(hit&&navigator.vibrate)try{navigator.vibrate(30)}catch(e){}
+  setTimeout(()=>{g.hidden=true},650);
+  if(!ST||BUSY)return;cutSfx();sfx("hammer");act("enhance",{useScroll:$("useScroll").checked,tap:hit},{minMs:560})}
+$("tapGame").addEventListener("pointerdown",e=>{e.preventDefault();stopTap()});
+$("upBtn").addEventListener("pointerdown",e=>{if(TAP.active){e.preventDefault();stopTap()}});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState!=="visible")cancelTap()});
+addEventListener("resize",()=>{if(TAP.active)placeTap()});
+
 async function openHunt(){if(META&&!META.dungeons){try{const m=await call("bootstrap");if(m&&m.dungeons)META=m}catch(e){}}renderHunt();try{const r=await call("me");if(r&&r.ok){ST=r.state;render();renderHunt();if(r.goblins&&r.goblins.length)showGoblin(r.goblins)}}catch(e){}}
 (async function init(){try{META=await call("bootstrap");if(!TOKEN)showGate();else await loadMe()}catch(e){$("name").textContent="서버에 연결하지 못했습니다";}
   setInterval(()=>{if(document.visibilityState==="visible"&&ST)refreshBoard()},20000)})();
@@ -1267,7 +1316,7 @@ async function openHunt(){if(META&&!META.dungeons){try{const m=await call("boots
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794365914;
+const BUILD=1794367221;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
