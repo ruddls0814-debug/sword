@@ -49,7 +49,8 @@ const SpreadsheetApp = { openById: () => BOOK };
 
 // ── 캐시 흉내: 메모리 + SQLite (잠들었다 깨어나도 유지) ──
 function kv_() {
-  if (!DB.kv) { DB.kv = new Map(); const now = Date.now(); for (const x of DB.sql.exec("SELECT k, v, exp FROM kv")) if (x.exp > now) DB.kv.set(x.k, { v: x.v, exp: x.exp }); }
+  if (!DB.kv) { DB.kv = new Map(); const now = Date.now(); try { DB.sql.exec("DELETE FROM kv WHERE exp <= ?", now); } catch (e) {}   // 기한 지난 임시 값은 저장소에서도 지움
+    for (const x of DB.sql.exec("SELECT k, v, exp FROM kv")) if (x.exp > now) DB.kv.set(x.k, { v: x.v, exp: x.exp }); }
   return DB.kv;
 }
 const CACHE = {
@@ -95,7 +96,7 @@ const Utilities = {
 const HtmlService = {}, ContentService = {};
 
 // ── 개인 기록 (행동마다 한 줄, 그때의 상태 전체 포함, 7일 보관) ──
-const HIST_KEEP_MS = 7 * 86400000;
+const HIST_KEEP_MS = 7 * 86400000; let HIST_N = 0;
 function hist_(row, st, prev) {
   if (!DB || !DB.sql) return;
   const c = HCTX || {act:'system'};
@@ -104,8 +105,8 @@ function hist_(row, st, prev) {
   const act = c.actorId && row.id !== c.actorId ? `${c.act}:by:${c.actorNick}` : c.act;
   DB.sql.exec("INSERT INTO hist (pid, t, act, lv0, lv1, line0, line1, gold0, gold1, state) VALUES (?,?,?,?,?,?,?,?,?,?)",
     row.id, Date.now(), act, +prev.lv || 0, +st.lv || 0, prev.line == null || prev.line === '' ? -1 : +prev.line, st.line == null ? -1 : +st.line,
-    Math.round(+prev.gold || 0), Math.round(+st.gold || 0), JSON.stringify(st));
-  if (Math.random() < 0.01) DB.sql.exec("DELETE FROM hist WHERE t < ?", Date.now() - HIST_KEEP_MS);
+    Math.round(+prev.gold || 0), Math.round(+st.gold || 0), JSON.stringify(Object.assign({}, st, {log: undefined})));   // 메시지 기록은 빼고 저장 (용량의 98%)
+  HIST_N++; if (HIST_N % 200 === 1) DB.sql.exec("DELETE FROM hist WHERE t < ?", Date.now() - HIST_KEEP_MS);
 }
 function histList_(pid, before, limit) {
   return DB.sql.exec("SELECT id, t, act, lv0, lv1, line0, line1, gold0, gold1 FROM hist WHERE pid = ? AND t < ? ORDER BY t DESC, id DESC LIMIT ?", pid, before > 0 ? before : 9e15, limit).toArray();
@@ -564,6 +565,7 @@ function admin_(action, req, row) {
     const h = histGet_(+req.hid); if (!h) return {ok:false, error:'그 기록을 찾을 수 없습니다 (7일이 지나 지워졌을 수 있습니다)'};
     const p = findBy_('id', h.pid); if (!p) return {ok:false, error:'플레이어를 찾을 수 없습니다'};
     const st = migrate_(Object.assign(fresh_(), JSON.parse(h.state)));
+    try { st.log = (JSON.parse(p.state || '{}').log) || []; } catch (e) { st.log = []; }   // 메시지 기록은 지금 것을 그대로 둠
     const when = Utilities.formatDate(new Date(h.t),'Asia/Seoul','MM.dd HH:mm:ss');
     say_(st, null, `관리자가 ${when} 시점으로 되돌렸습니다. (+${st.lv}, ${fmt(st.gold)} G)`, 'gold');
     if (st.hunt && st.hunt.d >= 0) { st.hunt.since = Date.now(); st.hunt.gt = st.hunt.since; }   // 되돌린 뒤 사냥 시간을 다시 쌓지 않게
@@ -963,6 +965,8 @@ export class Game extends DurableObject {
     this.sql.exec("CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL, exp INTEGER NOT NULL)");
     this.sql.exec("CREATE TABLE IF NOT EXISTS hist (id INTEGER PRIMARY KEY AUTOINCREMENT, pid TEXT NOT NULL, t INTEGER NOT NULL, act TEXT, lv0 INTEGER, lv1 INTEGER, line0 INTEGER, line1 INTEGER, gold0 INTEGER, gold1 INTEGER, state TEXT)");
     this.sql.exec("CREATE INDEX IF NOT EXISTS hist_pid_t ON hist (pid, t)");
+    // 한 번만: 예전 기록에서 메시지 기록(log)을 빼서 용량을 줄임
+    try { const done = this.sql.exec("SELECT v FROM kv WHERE k = '__slim1'").toArray(); if (!done.length) { this.sql.exec("UPDATE hist SET state = json_remove(state, '$.log') WHERE json_valid(state)"); this.sql.exec("INSERT OR REPLACE INTO kv (k, v, exp) VALUES ('__slim1', '1', 9e15)"); } } catch (e) { console.log("slim skip", e && e.message); }
     this.mem = { sql: this.sql, sheets: new Map(), kv: null, kvDirty: new Set(), touched: new Set(), ping: false };
     // 연결 유지 신호는 서버를 깨우지 않고 바로 답합니다 (요금 없음)
     try { ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong")); } catch (e) {}
@@ -996,6 +1000,7 @@ export class Game extends DurableObject {
     let body = {}; try { body = JSON.parse(await req.text() || "{}"); } catch (e) {}
     if (body.action === "__import") return json(this.run_(() => importData_(body)));
     if (["pitrCheck", "pitrRestore", "pitrUndo"].indexOf(body.action) >= 0) return json(await this.pitr_(body));
+    if (body.action === "storage") return json(this.storage_(body));
     return json(this.run_(() => api(body.action, body)));
   }
   // ── 서버 전체 되돌리기 (Cloudflare 특정 시점 복구, 최근 30일) ──
@@ -1018,6 +1023,16 @@ export class Game extends DurableObject {
     } catch (e) {
       return {ok:false, error:'서버 전체 되돌리기를 쓸 수 없습니다: ' + (e && e.message || e)};
     }
+  }
+  // ── 저장소 상태 (관리자): 전체 크기와 표마다 줄 수 ──
+  storage_(body) {
+    const auth = this.run_(() => { const r = findBy_('token', String(body.token || '')); return r && r.role === 'admin'; });
+    if (auth !== true) return {ok:false, error:'관리자만 볼 수 있습니다'};
+    const one = q => { try { return this.sql.exec(q).toArray()[0] || {}; } catch (e) { return {}; } };
+    const cells = {}; try { for (const r of this.sql.exec("SELECT sheet, COUNT(*) AS n, SUM(LENGTH(data)) AS b FROM cells GROUP BY sheet")) cells[r.sheet] = {rows:r.n, bytes:r.b}; } catch (e) {}
+    const h = one("SELECT COUNT(*) AS n, SUM(LENGTH(state)) AS b, MIN(t) AS t0 FROM hist"), k = one("SELECT COUNT(*) AS n, SUM(LENGTH(v)) AS b FROM kv");
+    let size = 0; try { size = this.sql.databaseSize; } catch (e) {}
+    return {ok:true, size, hist:{rows:h.n||0, bytes:h.b||0, since:h.t0||0}, kv:{rows:k.n||0, bytes:k.b||0}, cells, sockets:this.ctx.getWebSockets().length, limit:1e9};
   }
   webSocketMessage(ws, msg) { if (msg === "ping") try { ws.send("pong"); } catch (e) {} }
   webSocketClose(ws, code) { try { ws.close(code, "bye"); } catch (e) {} }
