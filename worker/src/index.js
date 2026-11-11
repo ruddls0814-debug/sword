@@ -364,7 +364,7 @@ function say_(st, out, text, kind) {
 function api(action, req) {
   req = req || {};
   try {
-    if (action === 'bootstrap') return {ok:true, dungeons:DUNGEONS, huntCapH:HUNT_CAP_H, buffs:BUFFS.map(b=>({key:b[0],name:b[1],n:b[2],desc:b[4]})), guardMax:GUARD_MAX, types:TYPE_OF, beats:BEATS, protectMax:PROTECT_MAX, lines:LINES.map(l=>({n:l.n,h:l.h,t:TYPE_OF[l.n]||'',names:l.names,desc:DESC[l.n]||[]})), baseDesc:BASE_DESC, odds:ODDS, base:BASE, max:MAX, url:(function(){try{return ScriptApp.getService().getUrl()}catch(e){return ''}})()};
+    if (action === 'bootstrap') return {ok:true, gift:{min:GIFT_MIN, fee:GIFT_FEE, perDay:GIFT_PER_DAY, dayMax:GIFT_DAY_MAX, ageH:GIFT_AGE_H}, dungeons:DUNGEONS, huntCapH:HUNT_CAP_H, buffs:BUFFS.map(b=>({key:b[0],name:b[1],n:b[2],desc:b[4]})), guardMax:GUARD_MAX, types:TYPE_OF, beats:BEATS, protectMax:PROTECT_MAX, lines:LINES.map(l=>({n:l.n,h:l.h,t:TYPE_OF[l.n]||'',names:l.names,desc:DESC[l.n]||[]})), baseDesc:BASE_DESC, odds:ODDS, base:BASE, max:MAX, url:(function(){try{return ScriptApp.getService().getUrl()}catch(e){return ''}})()};
     if (action === 'register') return register_(req);
     if (action === 'login') return login_(req);
     if (action === 'board') return board_(req);
@@ -417,7 +417,7 @@ function api(action, req) {
       if (['pending','approve','reject','give','roster','setApproval'].indexOf(action) >= 0) return admin_(action, req, row);
       const st = migrate_(Object.assign(fresh_(), JSON.parse(row.state||'{}')));
       const out = {msgs:[], fx:null};
-      const fn = {me:()=>{}, enhance:enhance_, sell:sell_, buyScroll:buyScroll_, aid:aid_, battle:battle_, cheer:cheer_, huntSet:huntSet_, huntStop:huntStop_, huntClaim:huntClaim_}[action];
+      const fn = {me:()=>{}, enhance:enhance_, sell:sell_, buyScroll:buyScroll_, aid:aid_, battle:battle_, cheer:cheer_, huntSet:huntSet_, huntStop:huntStop_, huntClaim:huntClaim_, gift:gift_}[action];
       if (fn && action !== 'cheer') settle_(st, out);
       if (!fn) return {ok:false, error:'알 수 없는 요청: '+action};
       const err = fn(st, req, out, row);
@@ -430,7 +430,7 @@ function api(action, req) {
 function pub_(st, row) {
   const dl = daily_(st);
   hunt_(st);
-  return Object.assign({}, st, {now:Date.now(), huntGph:st.hunt.d>=0?huntGph(st.hunt.d):0, huntCap:st.hunt.d>=0?huntGph(st.hunt.d)*HUNT_CAP_H:0, protectCost:protectCost(st), protectOk:st.lv < PROTECT_MAX, type:typeOf(st.line), aidLeft:AID_PER_DAY-dl.aid, battlesLeft:BATTLE_PER_DAY-dl.battles, bankrupt:bankrupt_(st), aidGold:AID_GOLD, nickname:row.nickname, id:row.id, role:row.role, name:nameOf(st.lv, st.line), cost:st.lv>=MAX?null:cost(st.lv), sell:sellOf(st.lv, st.line), scrollPrice:scrollPrice(st.lv), hidden:isHidden(st.line), lineName:st.line==null?null:LINES[st.line].n});
+  return Object.assign({}, st, giftInfo_(st, row), {now:Date.now(), huntGph:st.hunt.d>=0?huntGph(st.hunt.d):0, huntCap:st.hunt.d>=0?huntGph(st.hunt.d)*HUNT_CAP_H:0, protectCost:protectCost(st), protectOk:st.lv < PROTECT_MAX, type:typeOf(st.line), aidLeft:AID_PER_DAY-dl.aid, battlesLeft:BATTLE_PER_DAY-dl.battles, bankrupt:bankrupt_(st), aidGold:AID_GOLD, nickname:row.nickname, id:row.id, role:row.role, name:nameOf(st.lv, st.line), cost:st.lv>=MAX?null:cost(st.lv), sell:sellOf(st.lv, st.line), scrollPrice:scrollPrice(st.lv), hidden:isHidden(st.line), lineName:st.line==null?null:LINES[st.line].n});
 }
 
 // ── 계정 ──────────────────────────────────────────────────
@@ -624,6 +624,35 @@ function huntClaim_(st, req, out) {
   if (g < 1) return '주머니가 비어 있습니다';
   st.gold += g; h.pouch -= g;
   say_(st, out, `사냥 주머니에서 ${fmt(g)} G를 꺼냈습니다.`, 'gold'); out.fx = 'claim';
+}
+
+// ── 골드 선물 (유저끼리 보내기) ─────────────────────────────
+// 부계정으로 지원금을 모아 몰아주는 것을 막으려고 수수료·하루 한도·가입 24시간 조건을 둡니다.
+const GIFT_MIN = 100, GIFT_FEE = 0.05, GIFT_PER_DAY = 5, GIFT_DAY_MAX = 5000000, GIFT_AGE_H = 24;
+function giftInfo_(st, row) {
+  const dl = daily_(st), age = (Date.now() - new Date(row.created || 0).getTime()) / 3600000;
+  return {giftsLeft: GIFT_PER_DAY - (dl.gifts||0), giftRoom: GIFT_DAY_MAX - (dl.giftSum||0), giftAgeOk: !(age < GIFT_AGE_H), giftAgeLeftH: Math.max(0, Math.ceil(GIFT_AGE_H - age))};
+}
+function gift_(st, req, out, row) {
+  const dl = daily_(st), gi = giftInfo_(st, row);
+  const amt = Math.floor(+req.amount);
+  if (!(amt >= GIFT_MIN)) return `최소 ${fmt(GIFT_MIN)} G부터 보낼 수 있습니다`;
+  if (!gi.giftAgeOk) return `가입하고 ${GIFT_AGE_H}시간이 지나야 선물할 수 있습니다 (약 ${gi.giftAgeLeftH}시간 남음)`;
+  const to = findBy_('id', String(req.to||''));
+  if (!to || to.id === row.id || to.status !== 'ok') return '받을 사람을 찾을 수 없습니다';
+  if (gi.giftsLeft <= 0) return `선물은 하루 ${GIFT_PER_DAY}번까지 보낼 수 있습니다`;
+  if (amt > gi.giftRoom) return `오늘은 ${fmt(Math.max(0, gi.giftRoom))} G까지 더 보낼 수 있습니다 (하루 ${fmt(GIFT_DAY_MAX)} G)`;
+  const fee = Math.ceil(amt * GIFT_FEE);
+  if (st.gold < amt + fee) return `골드가 부족합니다 (보낼 ${fmt(amt)} G + 수수료 ${fmt(fee)} G)`;
+  const note = String(req.note||'').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 30);
+  st.gold -= amt + fee; dl.gifts = (dl.gifts||0) + 1; dl.giftSum = (dl.giftSum||0) + amt;
+  const tst = migrate_(Object.assign(fresh_(), JSON.parse(to.state||'{}'))); settle_(tst, null);
+  tst.gold += amt;
+  say_(tst, null, `🎁 ${row.nickname}님이 ${fmt(amt)} G를 보냈습니다.${note ? ` "${note}"` : ''}`, 'gold');
+  fitHunt_(tst, null); save_(to, tst);
+  say_(st, out, `🎁 ${to.nickname}님에게 ${fmt(amt)} G를 보냈습니다. (수수료 ${fmt(fee)} G)`, 'gold'); out.fx = 'gift';
+  feed_(`🎁 ${row.nickname}님이 ${to.nickname}님에게 ${fmt(amt)} G를 선물했습니다.`);
+  livePush_({type:'gift', id:row.id, nick:row.nickname, to:to.id, toNick:to.nickname, amount:amt, note});
 }
 function cheer_(st, req, out, row) {
   const ok = ['👏','🔥','😱','🙏','😂'];
