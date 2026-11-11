@@ -1721,7 +1721,7 @@ async function openHunt(){if(META&&!META.dungeons){try{const m=await call("boots
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794425150;
+const BUILD=1794426520;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
@@ -1971,6 +1971,83 @@ act=function(action,data,opt){return _actV2c.call(this,action,data,opt).then(asy
   if(r&&r.ok&&(action==="huntWeapon"||action==="sheathSwap"||action==="sheathSell")&&!$("p-hunt").hidden)renderHunt();
   if(r&&r.ok&&r.bounty)toast(`💰 현상금 ${fmt(r.bounty)} G 획득!`);
   return r})};
+</script>
+<script>// ════ 카톡 자랑하기 2: 검 설명 + 대장장이 한마디가 들어간 카드, 누르면 바로 게임으로 들어오는 공유 주소 ════
+const GAME_HOME="https://ruddls0814-debug.github.io/sword/";
+const BRAGQ={
+ zero:["부지깽이도 검이다. 아직 꿈이 큰 부지깽이일 뿐이지.","지금은 막대기지만, 내 손을 거치면 전설이 된다. 두고 봐."],
+ low:["아직 애송이 검이지만 내가 두드렸으니 곧 소문날 거야.","+{lv}? 시작이 반이다. 나머지 반은 내 망치가 한다.","이 녀석, 눈빛이 좋아. 크게 될 검이야."],
+ mid:["+{lv}이면 동네에서 어깨 펴고 다녀도 된다. 내가 허락한다.","이 정도면 옆 동네 대장장이가 몰래 구경 온다.","슬슬 무서워지는 단계야. 근데 멈추면 재미없지?"],
+ high:["+{lv}… 솔직히 나도 손 떨면서 두드렸다. 이건 진짜다.","이 검 보고도 가만히 있으면 대장장이 실격이야. 너도 와서 두드려 봐.","전설이 되기 직전의 검. 사진 찍어 둬, 언제 터질지 모르니까."],
+ max:["+20. 끝났다. 나는 신이고, 이 검은 신화다.","더 이상 두드릴 데가 없다. 이 검 앞에서 다들 무릎 꿇어."],
+ broke:["{broke}번 부서지고도 다시 왔다. 이런 손님은 처음이야.","파괴 {broke}번… 대장간 매출의 일등 공신이다. 고맙다."],
+ rare:["이건 레어야! 나도 몇 번 못 본 물건이다.","레어 검이 내 손에 들어오다니, 오늘 운수 대통이다."],
+ unique:["유니크… 대장간 문 연 뒤로 손에 꼽는 물건이다.","이 검은 특별해. 세상에 몇 자루 없어."],
+ epic:["에픽?! 이건 전설 속에서나 듣던 검이다. 손이 떨린다.","살면서 이걸 다시 볼 수 있을까. 에픽이다, 에픽!"]};
+function bragQuip(){const lv=ST.lv,g=ST.grade||0;let k=lv===0?"zero":lv>=20?"max":lv>=15?"high":lv>=8?"mid":"low";
+  if(g===3)k="epic";else if(g===2&&Math.random()<.7)k="unique";else if(g===1&&Math.random()<.5)k="rare";else if((ST.broke||0)>=20&&Math.random()<.3)k="broke";
+  const a=BRAGQ[k];return a[Math.floor(Math.random()*a.length)].replace("{lv}",lv).replace("{broke}",ST.broke||0)}
+function bragTitle(){return ST.lv>0?`${ST.nickname}의 +${ST.lv} ${ST.name}`:`${ST.nickname}의 대장간`}
+function bragDesc(q){const d=descOf(ST.lv,ST.line);const g=ST.grade&&META.grades?` · ${META.grades[ST.grade].n}`:"";return `${d?"「"+d+"」 ":""}대장장이: "${q}" · 최고 +${ST.best}${g}`}
+function bragMsg(q,url){const d=descOf(ST.lv,ST.line);const g=ST.grade&&META.grades?` [${META.grades[ST.grade].n}]`:"";
+  return `🔨 [검키우기 대장간]\n${bragTitle()}${g}\n${d?`"${d}"\n`:""}🧔 대장장이: "${q}"\n최고 +${ST.best} · 파괴 ${ST.broke||0}번\n\n⚔️ 지금 바로 하러 가기 👉 ${url}`}
+// 카드 그림 (900×1200): 검 · 단계 · 이름 · 설명 · 대장장이 말풍선
+function rr2(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+makeBrag=async function(q){await loadFonts();const W=900,H=1200,cv2=document.createElement("canvas");cv2.width=W;cv2.height=H;const c=cv2.getContext("2d");
+  const GC=["","#5fb4ff","#c58cff","#ffb03a"],tc=ST.grade?GC[ST.grade]:css(tierOf(Math.max(1,ST.lv)).c);
+  const g=c.createRadialGradient(W/2,380,40,W/2,380,640);g.addColorStop(0,"#3a2216");g.addColorStop(1,"#120d0a");c.fillStyle=g;c.fillRect(0,0,W,H);
+  c.strokeStyle=tc;c.lineWidth=6;rr2(c,24,24,W-48,H-48,28);c.stroke();
+  c.textAlign="center";c.fillStyle="#a8978a";c.font="700 28px 'IBM Plex Sans KR',"+KFB;c.fillText("검키우기 대장간",W/2,80);
+  if(ST.grade&&META.grades){const t=META.grades[ST.grade].n;c.font="800 26px 'IBM Plex Sans KR',"+KFB;const tw=c.measureText(t).width+36;c.strokeStyle=tc;c.lineWidth=3;rr2(c,W/2-tw/2,98,tw,42,21);c.stroke();c.fillStyle=tc;c.fillText(t,W/2,128)}
+  const u=ST.line!=null&&ST.lv>0?await getSprite(ST.line):null;
+  if(u){const img=new Image();img.src=u;await img.decode().catch(()=>{});const idx=ST.lv-1,cw=img.naturalWidth/5,ch=img.naturalHeight/4;
+    c.save();c.shadowColor=tc;c.shadowBlur=ST.lv>=5?70:20;c.drawImage(img,(idx%5)*cw,Math.floor(idx/5)*ch,cw,ch,W/2-250,150,500,500);c.restore()}
+  else{c.font="180px sans-serif";c.fillText(ST.lv>0?"⚔️":"🔨",W/2,480)}
+  c.fillStyle=tc;c.font="400 128px 'Black Han Sans',"+KFB;c.fillText("+"+ST.lv,W/2,770);
+  c.fillStyle="#f1e6d8";c.font="400 56px 'Black Han Sans',"+KFB;c.fillText(ST.name,W/2,840);
+  c.fillStyle="#b9a693";c.font="500 30px 'IBM Plex Sans KR',"+KFB;const dl=wrapText(c,descOf(ST.lv,ST.line)||"",W/2,892,W-160,40);
+  // 대장장이 말풍선
+  const by=Math.min(980,892+Math.min(dl,2)*40+20),bh=150;c.fillStyle="rgba(255,122,47,.12)";c.strokeStyle="rgba(255,122,47,.7)";c.lineWidth=3;rr2(c,70,by,W-140,bh,22);c.fill();c.stroke();
+  c.textAlign="left";c.fillStyle="#ff9a5c";c.font="800 26px 'IBM Plex Sans KR',"+KFB;c.fillText("🧔 괴짜 대장장이",100,by+42);
+  c.fillStyle="#f1e6d8";c.font="600 30px 'IBM Plex Sans KR',"+KFB;wrapText(c,`"${q}"`,100,by+88,W-200,40);
+  c.textAlign="center";c.fillStyle=ST.grade?tc:"#ff7a2f";c.font="700 30px 'IBM Plex Sans KR',"+KFB;c.fillText(`${ST.nickname} · 최고 +${ST.best} · 파괴 ${ST.broke||0}번`,W/2,1168-16);
+  return cv2};
+// 공유 준비: 카드를 만들고 서버에 올려 공유 주소를 받음
+let SHARE=null;
+async function prepareShare(){const q=bragQuip(),cv2=await makeBrag(q);const jpg=cv2.toDataURL("image/jpeg",.86);BRAG=await new Promise(r=>cv2.toBlob(r,"image/png"));
+  let url=GAME_HOME+"?from="+encodeURIComponent(ST.nickname),img=null;
+  try{const r=await call("shareSave",{img:jpg,title:bragTitle(),desc:bragDesc(q)});if(r&&r.ok){url=r.url;img=r.img}}catch(e){}
+  SHARE={q,url,img,jpg,text:bragMsg(q,url)};return SHARE}
+function openBragBox(){$("bragImg").src=SHARE.jpg;$("bragBox").hidden=false;
+  $("bragShare").textContent="💬 카톡으로 자랑하기 (바로가기 포함)";$("bragShare").style.cssText="font-size:17px;background:linear-gradient(180deg,#fee500,#e6cf00);color:#1d1600";
+  $("bragLink").textContent="📸 사진만 따로 보내기";$("bragLink").style.cssText="font-size:15px";$("bragLink").className="btn";
+  $("bragTip").textContent="카톡 대화방에 미리보기 카드가 뜨고, 친구가 누르면 바로 게임으로 들어옵니다. 사진은 따로 보내고 싶을 때만 쓰세요.";
+  document.querySelector("#bragBox .bh").textContent="이 카드가 카톡 미리보기로 보입니다"}
+$("shareBtn").onclick=async()=>{if(!ST)return;const btn=$("shareBtn");btn.disabled=true;const old=btn.textContent;btn.textContent="자랑 카드 만드는 중…";
+  try{try{await document.fonts.ready}catch(e){}await prepareShare();openBragBox()}catch(e){toast("자랑 카드를 만들지 못했습니다. 다시 눌러 주세요")}finally{btn.disabled=false;btn.textContent=old}};
+// ① 카톡으로: 휴대폰 공유창에 문구+주소(카톡이 미리보기 카드로 보여 줌) → PC면 카카오 공유 → 그것도 안 되면 복사
+$("bragShare").onclick=async()=>{if(!SHARE)return;const t=SHARE.text;
+  try{if(navigator.share){await navigator.share({title:bragTitle(),text:t});return}}catch(e){if(e&&e.name==="AbortError")return}
+  const K=window.Kakao&&window.Kakao.isInitialized&&window.Kakao.isInitialized()?window.Kakao:null;
+  if(K&&SHARE.img){try{const home=GAME_HOME+"?from="+encodeURIComponent(ST.nickname);
+    K.Share.sendDefault({objectType:"feed",content:{title:bragTitle(),description:bragDesc(SHARE.q).slice(0,180),imageUrl:SHARE.img,imageWidth:900,imageHeight:1200,link:{mobileWebUrl:home,webUrl:home}},
+      buttons:[{title:"⚔️ 지금 바로 하러 가기",link:{mobileWebUrl:home,webUrl:home}}]});return}catch(e){}}
+  toast(await copyText(t)?"자랑 문구와 바로가기 주소를 복사했습니다. 카톡에 붙여넣으세요":"복사가 안 됩니다. 아래 사진을 길게 눌러 저장하세요")};
+// ② 사진만
+$("bragLink").onclick=async()=>{if(!BRAG)return;await copyText(SHARE?SHARE.text:"");
+  try{const f=new File([BRAG],"my-sword.png",{type:"image/png"});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:"검키우기 대장간"});toast("자랑 문구도 복사해 뒀어요. 카톡에 붙여넣으면 바로가기 주소가 같이 갑니다");return}}catch(e){if(e&&e.name==="AbortError")return}
+  try{await navigator.clipboard.write([new ClipboardItem({"image/png":BRAG})]);toast("검 사진을 복사했습니다. 카톡에 붙여넣으세요");return}catch(e){}
+  toast("사진을 길게 눌러 저장한 뒤 카톡에서 보내세요")};
+bragText=function(){return SHARE?SHARE.text:bragMsg(bragQuip(),GAME_HOME)};
+// 공유 주소로 들어온 친구: 첫 화면에 누가 초대했는지 보여 줌
+(function welcome(){let from="";try{from=new URLSearchParams(location.search).get("from")||""}catch(e){}if(!from)return;from=from.slice(0,20);
+  try{history.replaceState(null,"",location.pathname)}catch(e){}
+  const show=()=>{const g=$("gate");if(!g||g.hidden)return;const box=g.firstElementChild||g;if(box.querySelector(".invite"))return;
+    const d=el("div","invite");d.style.cssText="background:rgba(255,122,47,.12);border:1px solid rgba(255,122,47,.55);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:14.5px;line-height:1.5";
+    d.textContent=`👋 ${from}님의 검 자랑을 보고 오셨군요! 닉네임과 비밀번호만 정하면 바로 같이 키울 수 있어요.`;box.prepend(d);
+    const su=[...g.querySelectorAll('button')].find(b=>b.textContent.trim()==='가입 신청');if(su)su.click()};
+  setTimeout(show,300);setTimeout(show,1500);
+  if(ST)toast(`👋 ${from}님의 자랑을 보고 오셨군요`)})();
 </script>
 <script>// ════ 완성도 보강: 상황을 읽는 대장장이 · 골드 숫자 굴러가기 · 등급 오라 · 연속 성공 표시 · 진동 ════
 // 기존 함수(quip, quipFor, fx, render, playBattle)를 감싸서 동작을 더합니다. 서버 규칙은 건드리지 않습니다.
