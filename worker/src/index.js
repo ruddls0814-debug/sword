@@ -268,6 +268,50 @@ function settings_() {
   c.put('settings', JSON.stringify(o), 60);
   return o;
 }
+// ── 강화 확률 이벤트 (관리자가 열고 닫음) ──
+// {title, bonus: 성공 +%p, cut: 파괴 확률 줄이기 0·50·100(%), start, end}
+const EVENT_MAX_BONUS = 30, EVENT_MAX_H = 72;
+function setSetting_(key, value, desc) {
+  const sh = sheet_('settings', ['key','value','설명']), n = sh.getLastRow();
+  const keys = n > 1 ? sh.getRange(2,1,n-1,1).getValues().map(r => String(r[0]).trim()) : [];
+  const at = keys.indexOf(key);
+  if (at >= 0) sh.getRange(at+2, 2).setValue(value); else sh.appendRow([key, value, desc||'']);
+  CacheService.getScriptCache().remove('settings');
+}
+function event_() { try { const e = JSON.parse(settings_().enh_event || 'null'); return e && e.end > Date.now() ? e : null; } catch (e) { return null; } }
+function eventOn_() { const e = event_(), now = Date.now(); return e && e.start <= now ? e : null; }
+function eventPub_() { const e = event_(); return e ? {title:e.title, bonus:e.bonus, cut:e.cut, start:e.start, end:e.end, on:e.start <= Date.now()} : null; }
+function eventOdds_(s, d) {   // 이벤트가 진행 중이면 파괴를 먼저 줄이고, 그만큼 유지로 옮긴 뒤 성공 확률을 더함
+  const e = eventOn_(); if (!e) return [s, d, null];
+  const d2 = Math.round(d * (1 - (e.cut||0) / 100) * 10) / 10;
+  return [Math.min(100 - d2, s + (e.bonus||0)), d2, e];
+}
+function eventLabel_(e) { return `${e.bonus ? `성공 +${e.bonus}%p` : ''}${e.bonus && e.cut ? ' · ' : ''}${e.cut === 100 ? '파괴 없음' : e.cut ? `파괴 ${e.cut}% 줄임` : ''}`; }
+function eventSet_(req) {
+  const bonus = Math.round(+req.bonus || 0), cut = [0,50,100].indexOf(+req.cut) >= 0 ? +req.cut : 0;
+  if (bonus < 0 || bonus > EVENT_MAX_BONUS) return {ok:false, error:`성공 확률은 0~${EVENT_MAX_BONUS}%p 사이로 정하세요`};
+  if (!bonus && !cut) return {ok:false, error:'성공 확률을 올리거나 파괴 확률을 줄이는 것 중 하나는 정하세요'};
+  const now = Date.now(), start = Math.max(now, +req.start || now), end = +req.end || 0;
+  if (!(end > start + 60000)) return {ok:false, error:'끝나는 시각은 시작보다 1분 이상 뒤여야 합니다'};
+  if (end - start > EVENT_MAX_H * 3600000) return {ok:false, error:`이벤트는 최대 ${EVENT_MAX_H}시간까지 열 수 있습니다`};
+  if (start > now + 7 * 86400000) return {ok:false, error:'시작은 7일 안으로 정하세요'};
+  const title = String(req.title || '').trim().slice(0, 24) || '강화 확률 이벤트';
+  const e = {title, bonus, cut, start, end, at:now};
+  setSetting_('enh_event', JSON.stringify(e), '강화 확률 이벤트 (관리 탭에서 바꾸세요)');
+  const when = start <= now ? '지금부터' : Utilities.formatDate(new Date(start),'Asia/Seoul','M월 d일 HH:mm') + '부터';
+  const till = Utilities.formatDate(new Date(end),'Asia/Seoul','M월 d일 HH:mm');
+  try { chatPush_({sys:true, nick:'대장간', text:`🎉 ${title}! ${when} ${till}까지 강화 ${eventLabel_(e)}!`}); } catch (x) {}
+  feed_(`🎉 ${title}: ${when} ${till}까지 강화 ${eventLabel_(e)}`);
+  livePush_({type:'event', event:eventPub_()});
+  return {ok:true, event:eventPub_()};
+}
+function eventEnd_() {
+  const e = event_(); if (!e) return {ok:false, error:'진행 중이거나 예정된 이벤트가 없습니다'};
+  setSetting_('enh_event', '', '강화 확률 이벤트 (관리 탭에서 바꾸세요)');
+  if (e.start <= Date.now()) feed_(`${e.title}이(가) 끝났습니다.`);
+  livePush_({type:'event', event:null});
+  return {ok:true};
+}
 // ── 검 그림 (드라이브의 game_sprites*.json 묶음에서 계열별 5x4 스프라이트를 꺼냄) ──
 const SPRITE_FOLDER = '1lV5C1k24uMQ6Xm4A5Ee90RCehQ4bDFg_';
 const HD_GROUPS = [[0,8],[9,18],[19,26],[27,34],[35,40]];   // game_sprites_hd_N.json 에 든 계열 번호 범위
@@ -406,7 +450,7 @@ function api(action, req) {
     }
     if (action === 'live') { const L = liveRead_(), since = +req.since || 0, cs = +req.chatSince || 0;
       if (req.token) { const lw = findBy_('token', String(req.token)); if (lw && lw.status === 'ok') markOnline_(lw.id); }
-      const out = {ok:true, seq:L.seq, ev:L.ev.filter(e => e.seq > since), watchers:watchers_(null), min:PUBLIC_MIN};
+      const out = {ok:true, seq:L.seq, ev:L.ev.filter(e => e.seq > since), watchers:watchers_(null), min:PUBLIC_MIN, event:eventPub_()};
       const acc = roomAccess_(String(req.room||LOBBY), req.roomPw);
       if (typeof acc === 'string') { out.roomError = acc; out.room = LOBBY; }
       else { const C = chatRead_(acc.id); out.room = acc.id; out.chatSeq = C.seq; out.chat = C.msgs.filter(m => m.seq > cs); }
@@ -442,7 +486,7 @@ function api(action, req) {
       if (!row) return {ok:false, error:'로그인이 필요합니다', needLogin:true};
       if (row.status === 'pending' && !needApproval_()) { players_().getRange(row.row, 11).setValue('ok'); row.status = 'ok'; feed_(`${row.nickname}님이 대장간에 들어왔습니다.`); }
       if (row.status !== 'ok') return {ok:false, error:'가입 승인을 기다리는 중입니다', pending:true};
-      if (['pending','approve','reject','give','roster','setApproval','history','restore'].indexOf(action) >= 0) { HCTX = {act:'admin:'+action, actorId:'', actorNick:'관리자'}; return admin_(action, req, row); }
+      if (['pending','approve','reject','give','roster','setApproval','history','restore','eventSet','eventEnd'].indexOf(action) >= 0) { HCTX = {act:'admin:'+action, actorId:'', actorNick:'관리자'}; return admin_(action, req, row); }
       const st = migrate_(Object.assign(fresh_(), JSON.parse(row.state||'{}')));
       const out = {msgs:[], fx:null};
       HCTX = {act:action, actorId:row.id, actorNick:row.nickname}; markOnline_(row.id);
@@ -459,7 +503,7 @@ function api(action, req) {
 function pub_(st, row) {
   const dl = daily_(st);
   hunt_(st);
-  return Object.assign({}, st, giftInfo_(st, row), {now:Date.now(), huntGph:st.hunt.d>=0?huntGph(st.hunt.d):0, huntCap:st.hunt.d>=0?huntGph(st.hunt.d)*HUNT_CAP_H:0, protectCost:protectCost(st), protectOk:st.lv < PROTECT_MAX, type:typeOf(st.line), aidLeft:AID_PER_DAY-dl.aid, battlesLeft:BATTLE_PER_DAY-dl.battles, bankrupt:bankrupt_(st), aidGold:AID_GOLD, nickname:row.nickname, id:row.id, role:row.role, name:nameOf(st.lv, st.line), cost:st.lv>=MAX?null:cost(st.lv), sell:sellOf(st.lv, st.line), scrollPrice:scrollPrice(st.lv), hidden:isHidden(st.line), grade:gradeOf(st.line), mark:markOf_(st), achStats:achStats_(st), achs:st.achs||[], badge:st.badge||'', lineName:st.line==null?null:LINES[st.line].n});
+  return Object.assign({}, st, giftInfo_(st, row), {now:Date.now(), huntGph:st.hunt.d>=0?huntGph(st.hunt.d):0, huntCap:st.hunt.d>=0?huntGph(st.hunt.d)*HUNT_CAP_H:0, protectCost:protectCost(st), protectOk:st.lv < PROTECT_MAX, type:typeOf(st.line), aidLeft:AID_PER_DAY-dl.aid, battlesLeft:BATTLE_PER_DAY-dl.battles, bankrupt:bankrupt_(st), aidGold:AID_GOLD, nickname:row.nickname, id:row.id, role:row.role, name:nameOf(st.lv, st.line), cost:st.lv>=MAX?null:cost(st.lv), sell:sellOf(st.lv, st.line), scrollPrice:scrollPrice(st.lv), hidden:isHidden(st.line), event:eventPub_(), grade:gradeOf(st.line), mark:markOf_(st), achStats:achStats_(st), achs:st.achs||[], badge:st.badge||'', lineName:st.line==null?null:LINES[st.line].n});
 }
 
 // ── 계정 ──────────────────────────────────────────────────
@@ -496,6 +540,8 @@ function admin_(action, req, row) {
     const set = settings_();
     return {ok:true, list:allRows_().filter(r => r.status === 'pending').map(r => ({id:r.id, nickname:r.nickname, intro:r.intro, created:r.created ? Utilities.formatDate(new Date(r.created),'Asia/Seoul','MM.dd HH:mm') : ''})), invite:set.invite_code, approval:set.require_approval};
   }
+  if (action === 'eventSet') return eventSet_(req);
+  if (action === 'eventEnd') return eventEnd_();
   if (action === 'setApproval') {
     const sh = sheet_('settings', ['key','value','설명']), n = sh.getLastRow();
     const keys = n > 1 ? sh.getRange(2,1,n-1,1).getValues().map(r => String(r[0]).trim()) : [];
@@ -566,7 +612,7 @@ function enhance_(st, req, out, row) {
   st.gold -= c + pc; st.tries++;
   if (useFree) B.free--; if (useLuck) B.luck--; if (useGuard) B.guard--;
   const before = st.lv, beforeName = nameOf(st.lv, st.line), beforeLine = st.line;
-  let [s,d] = ODDS[st.lv]; if (useLuck) s = Math.min(100 - d, s + 5);
+  let [s,d,evt] = eventOdds_(ODDS[st.lv][0], ODDS[st.lv][1]); if (useLuck) s = Math.min(100 - d, s + 5);
   const tapHit = req.tap === true; if (tapHit) s = Math.min(100 - d, s + TAP_BONUS);   // 직접 두들기기 명중
   const r = Math.random()*100;
   if (r < s) {
