@@ -544,6 +544,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
         <button role="tab" aria-selected="false" data-tab="feed" data-label="소식"><i aria-hidden="true">📰</i>소식</button>
         <button role="tab" aria-selected="false" data-tab="arena" data-label="배틀"><i aria-hidden="true">⚔️</i>배틀</button>
         <button role="tab" aria-selected="false" data-tab="hunt" data-label="사냥"><i aria-hidden="true">⛏️</i>사냥</button>
+        <button role="tab" aria-selected="false" data-tab="rr" data-label="러시안 강화"><i aria-hidden="true">🎰</i><span class="badge" id="rrBadge" hidden>!</span>러시안 강화</button>
         <button role="tab" aria-selected="false" data-tab="rank" data-label="랭킹"><i aria-hidden="true">🏆</i>랭킹</button>
         <button role="tab" aria-selected="false" data-tab="gift" data-label="선물"><i aria-hidden="true">🎁</i>선물</button>
         <button role="tab" aria-selected="false" data-tab="shop" data-label="상점"><i aria-hidden="true">🛒</i>상점</button>
@@ -561,6 +562,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
         <div class="chat" id="liveLog"></div>
       </div>
       <div class="pane" id="p-admin" hidden><div id="adminBox"></div></div>
+      <div class="pane" id="p-rr" hidden style="max-height:none"><div id="rrBox"></div></div>
       <div class="pane chatpane" id="p-chat" hidden>
         <div class="roombar"><button type="button" class="roomnow" id="roomNow">💬 전체 <small>방 바꾸기</small></button><button type="button" class="btn" id="roomNew" style="padding:8px 12px">＋ 방 만들기</button></div>
         <div class="roompanel" id="roomPanel" hidden><div id="roomList"><p class="empty">불러오는 중…</p></div></div>
@@ -689,7 +691,7 @@ function render(){if(!ST||!META)return;if(ST!==render.st){render.st=ST;if(ST.eve
   $("who").innerHTML="";$("who").append(document.createTextNode(nk(ST.nickname,ST.mark)+"님의 대장간"));
   $("lvl").textContent="+"+ST.lv;$("name").textContent=ST.name;$("desc").textContent=descOf(ST.lv,ST.line);
   const t=tierOf(ST.lv);
-  $("tier").textContent=ST.line==null?"정체불명 · 첫 강화에 종류가 정해집니다":`${t.n} · ${ST.lineName} 계열 · ${ST.type} 속성${ST.hidden?" · 레어 (판매가↑ · 결투 +1)":""}`;
+  $("tier").textContent=ST.line==null?"정체불명 · 첫 강화에 종류가 정해집니다":`${t.n} · ${ST.lineName} 계열 · ${ST.type} 속성${ST.grade?` · ${(META.grades||[])[ST.grade]?META.grades[ST.grade].n:"레어"} (판매가↑ · 결투 +${ST.grade})`:""}${ST.effect&&META.effects?` · ✨ ${META.effects[ST.effect]}`:""}`;
   $("tier").style.color=ST.hidden?"var(--warn)":"";$("lvl").style.color=css(t.c);
   if(ST.lv>=META.max){["pS","pK","pD"].forEach(i=>$(i).textContent="-");$("bS").style.width="100%";$("bK").style.width="0";$("bD").style.width="0";$("upCost").textContent="최고 단계";$("upBtn").disabled=true}
   else{const[s,d]=oddsNow(ST.lv),k=Math.round((100-s-d)*10)/10,o=META.odds[ST.lv],on=evOn();document.querySelector(".odds").classList.toggle("ev",on);$("pS").textContent=s+"%";$("pK").textContent=k+"%";$("pD").textContent=d+"%";if(on){if(s!==o[0])$("pS").insertAdjacentHTML("beforeend",`<span class="evup">이벤트 +${Math.round((s-o[0])*10)/10}</span>`);if(d!==o[1])$("pD").insertAdjacentHTML("beforeend",`<span class="evup">이벤트 −${Math.round((o[1]-d)*10)/10}</span>`)}$("bS").style.width=s+"%";$("bK").style.width=k+"%";$("bD").style.width=d+"%";$("upCost").textContent=ST.cost?fmt(ST.cost)+" G":"무료";$("upBtn").disabled=false}
@@ -760,7 +762,7 @@ function playBattle(b){return new Promise(done=>{
   const A=document.createElement("div");A.className="arena";A.setAttribute("role","dialog");A.setAttribute("aria-label","배틀");
   const mk=(side,p)=>{const f=document.createElement("div");f.className="ftr "+side;
     if(p.line!=null&&p.lv>0){const a=document.createElement("div");a.className="art";setArt(a,p.line,p.lv);const c=css(tierOf(p.lv).c);a.style.filter=`drop-shadow(0 0 ${8+p.lv}px ${c})`;f.append(a)}
-    else{const ph=document.createElement("div");ph.className="ph";ph.textContent="🪵";f.append(ph)}
+    else{const ph=document.createElement("div");ph.className="ph";ph.textContent=p.ph||"🪵";f.append(ph)}
     const lb=document.createElement("div");lb.className="lb";lb.textContent=p.nick;const sm=document.createElement("small");sm.textContent="+"+p.lv+(p.line!=null?" "+nameOf(p.lv,p.line):"");lb.append(sm);f.append(lb);
     const tg=document.createElement("div");tg.className="tag";f.append(tg);return f};
   const ring=document.createElement("div");ring.className="ring";const L=mk("L",b.me),R=mk("R",b.foe);
@@ -787,16 +789,17 @@ function playBattle(b){return new Promise(done=>{
     Lo.classList.add("lose");W.classList.add("winr");
     bn.textContent=b.win?"승리!":"패배…";bn.style.color=b.win?"var(--ok)":"var(--bad)";bn.classList.add("on");
     const ya=b.mode==="yacha",sub=document.createElement("small");
-    sub.textContent=ya?(b.win?`상대 검 자동 판매! 전리품 +${fmt(b.price)} G`:`내 검이 ${fmt(b.price)} G에 자동 판매됐다…`):(b.win?`상금 +${fmt(b.gold||0)} G`:`참가비 -${fmt(b.gold||0)} G`);
+    sub.textContent=b.sub?b.sub:ya?(b.win?`상대 검 자동 판매! 전리품 +${fmt(b.price)} G`:`내 검이 ${fmt(b.price)} G에 자동 판매됐다…`):(b.win?`상금 +${fmt(b.gold||0)} G`:`참가비 -${fmt(b.gold||0)} G`);
     sub.style.color=ya?"var(--bad)":(b.win?"var(--ok)":"var(--warn)");bn.append(sub);
-    const tg=Lo.querySelector(".tag");tg.textContent=ya?"판매":(b.win?"패배":"패배");tg.style.color=ya?"var(--bad)":"var(--warn)";tg.classList.add("on");
+    const tg=Lo.querySelector(".tag");tg.textContent=ya?"판매":"패배";tg.style.color=ya?"var(--bad)":"var(--warn)";tg.classList.add("on");
     try{if(SOUND){if(b.win)sfx("success",2);else sfx("destroy",1)}}catch(e){}});
   at(4000,end);
 })}
 function setBusy(on){BUSY=on;["upBtn","sellBtn","buyScroll","aidBtn"].forEach(i=>$(i).classList.toggle("busy",on));$("upLabel").innerHTML=on?'<span class="hammer">🔨</span>':"강화"}
 const HOLD={keep:220,success:320,saved:700,hidden:1300,destroy:1200,sell:400};
-async function act(action,data,opt){if(BUSY||!ST)return;setBusy(true);opt=opt||{};const t0=Date.now();let hold=0;
-  try{const r=await call(action,data);
+let ACT_LAST=null;
+async function act(action,data,opt){ACT_LAST=null;if(BUSY||!ST)return;setBusy(true);opt=opt||{};const t0=Date.now();let hold=0;
+  try{const r=await call(action,data);ACT_LAST=r;
     if(r&&r.goblins&&r.goblins.length)setTimeout(()=>showGoblin(r.goblins),900);
     if(opt.minMs){const w=opt.minMs-(Date.now()-t0);if(w>0)await new Promise(z=>setTimeout(z,w))}
     if(!r.ok){if(r.needLogin){showGate();return}result(r.error,"var(--dim)","shake");toast(r.error);if(r.state){ST=r.state;render()}return}
@@ -851,7 +854,7 @@ async function refreshBoard(){try{const b=await call("board");if(b&&b.ok){BOARD=
 $("foeRefresh").onclick=async()=>{const b=$("foeRefresh");if(b.disabled)return;b.disabled=true;b.textContent="불러오는 중…";
   await refreshBoard();let n=3;const tick=()=>{if(n<=0){b.disabled=false;b.textContent="🔄 새로고침";return}b.textContent="🔄 "+n+"초";n--;setTimeout(tick,1000)};tick()};
 
-function showTab(t){document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));["log","live","chat","feed","arena","hunt","rank","gift","shop","dex","ach","admin"].forEach(x=>$("p-"+x).hidden=x!==t);if(t==="ach"){renderAch();$("achBadge").hidden=true};menuLabel(t);setMenuOpen(false);if(t==="gift"){renderGiftPane();refreshBoard()}if(t==="hunt")openHunt();else if(ST)huntAnim();if(t==="chat"){UNREAD=0;updBadge();const cl=$("chatLog");cl.scrollTop=cl.scrollHeight}if(["feed","arena","rank"].includes(t))refreshBoard();if(t==="admin")loadAdmin();if(t==="live"){$("livebar").hidden=true;enterChannel()}else leaveChannel()}
+function showTab(t){document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));["log","live","chat","feed","arena","hunt","rank","gift","shop","dex","ach","rr","admin"].forEach(x=>{const el=$("p-"+x);if(el)el.hidden=x!==t});if(t==="ach"){renderAch();$("achBadge").hidden=true};menuLabel(t);setMenuOpen(false);if(t==="gift"){renderGiftPane();refreshBoard()}if(t==="hunt")openHunt();else if(ST)huntAnim();if(t==="chat"){UNREAD=0;updBadge();const cl=$("chatLog");cl.scrollTop=cl.scrollHeight}if(["feed","arena","rank"].includes(t))refreshBoard();if(t==="admin")loadAdmin();if(t==="live"){$("livebar").hidden=true;enterChannel()}else leaveChannel()}
 document.querySelectorAll(".tabs button[data-tab]").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 
 // ── 괴짜 대장장이 대사 ── {name} 검 이름, {desc} 검 설명, {lv} 단계, {prev} 이전 단계, {nick} 플레이어
@@ -1140,7 +1143,7 @@ async function loadAdmin(){const box=$("adminBox");box.innerHTML='<p class="empt
     $("giveBtn").onclick=async()=>{const id=$("giveTo").value,amt=Number(String($("giveAmt").value).replace(/[,\s]/g,""));if(!id||!amt){toast("받는 사람과 금액을 넣어 주세요");return}
       const gb=$("giveBtn");if(gb.dataset.arm!=="1"){gb.dataset.arm="1";gb.textContent="확인";setTimeout(()=>{gb.dataset.arm="";gb.textContent="보내기"},3000);toast(`${$("giveTo").selectedOptions[0].textContent.split(" · ")[0]}님에게 ${fmt(amt)} G — 한 번 더 누르면 보냅니다`);return}
       gb.dataset.arm="";gb.textContent="보내기";const q=await call("give",{id,amount:amt,memo:$("giveMemo").value});toast(q.ok?`${q.nickname}님 잔액 ${fmt(q.gold)} G`:q.error);if(q.ok){$("giveAmt").value="";$("giveMemo").value="";loadMe();loadAdmin()}};
-    buildStorage(box);buildEvent(box);buildHistory(box);buildPitr(box);
+    buildStorage(box);buildDrop(box);buildEvent(box);buildHistory(box);buildPitr(box);
     const h=document.createElement("p");h.className="note";h.textContent=`승인 대기 ${r.list.length}명`;box.append(h);
     if(!r.list.length){const e=document.createElement("p");e.className="empty";e.textContent="기다리는 신청이 없습니다.";box.append(e)}
     r.list.forEach(x=>{const d=document.createElement("div");d.className="pend";d.innerHTML='<div class="meta"><b></b><span></span></div><div class="b2"><button class="no">거절</button><button class="ok">승인</button></div>';
@@ -1211,6 +1214,15 @@ async function yachaEvent(e){
   if(e.type==="yachaNo"){if(YA.out&&YA.out.cid===e.cid)yachaOutEnd(e.why==="nosword"?"검이 +0이 되어 야차 배틀이 취소되었습니다":`${e.nick}님이 야차 배틀을 거절했습니다`,false);return}
   if(e.type==="yachaDone"){if(YA.out&&YA.out.cid===e.cid)yachaOutEnd("",false);try{await playBattle(e.battle)}catch(x){}const q=await call("me").catch(()=>null);if(q&&q.ok){const before=ST.lv;ST=q.state;fx(e.battle.win?"win":"lose",before);render();refreshBoard()}}}
 
+// ── 무기 등장 확률 (첫 강화 때, 한 종류당 %) ──
+function buildDrop(box){const w=document.createElement("div");w.className="give";const R=(META&&META.drop)||{rare:.7,unique:.1,epic:.02};
+  const n=g=>(META.lines||[]).filter(l=>l.g===g).length;
+  w.innerHTML=`<b>🎲 무기 등장 확률</b><p class="hint">새 부지깽이의 첫 강화에서 나올 확률입니다. 한 종류당 %로 정하고, 합계는 옆에 보입니다.</p>
+  <div class="row3" style="grid-template-columns:repeat(3,1fr)">${[["rare","레어",1],["unique","유니크",2],["epic","에픽",3]].map(([k,t,g])=>`<label class="hint">${t} (${n(g)}종)<input id="dr_${k}" inputmode="decimal" value="${R[k]}" style="width:100%;margin-top:4px"><span id="drs_${k}"></span></label>`).join("")}</div>
+  <button class="btn" type="button" id="drGo" style="font-size:15px;padding:10px">확률 저장</button>`;box.append(w);
+  const upd=()=>[["rare",1],["unique",2],["epic",3]].forEach(([k,g])=>{const v=parseFloat($("dr_"+k).value)||0;$("drs_"+k).textContent=` 합계 ${Math.round(v*n(g)*1000)/1000}%`});
+  ["rare","unique","epic"].forEach(k=>$("dr_"+k).addEventListener("input",upd));upd();
+  $("drGo").onclick=async()=>{const r=await call("dropSet",{rare:parseFloat($("dr_rare").value),unique:parseFloat($("dr_unique").value),epic:parseFloat($("dr_epic").value)});toast(r.ok?"무기 등장 확률을 저장했습니다":r.error);if(r.ok&&META)META.drop=r.rates}}
 // ── 서버 저장소 상태 ──
 function buildStorage(box){const w=document.createElement("div");w.className="give";w.innerHTML='<b>🗄️ 서버 저장소</b><p class="hint" id="stoInfo">불러오는 중…</p>';box.append(w);
   const mb=b=>(b/1048576).toFixed(b<1048576?2:1)+" MB";
@@ -1709,7 +1721,7 @@ async function openHunt(){if(META&&!META.dungeons){try{const m=await call("boots
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794421705;
+const BUILD=1794425150;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
@@ -1751,6 +1763,214 @@ async function openPatchList(){if(document.getElementById("patchList"))return;if
     const d=document.getElementById("patchDot");if(d)d.hidden=true}
   catch(e){list.innerHTML='<p class="empty">패치노트를 불러오지 못했습니다.</p>'}}
 (function(){const b=document.getElementById("patchBtn");if(b)b.onclick=openPatchList;refreshPatchDot()})();
+</script>
+<script>// ════ 2차 확장 화면: 재료·검집 · 사냥(무기 선택·숙련·보스) · 시즌·현상금 · 러시안 강화 · 공개 강화 연출 ════
+const el=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e};
+const matOf=k=>(META&&META.mats||[]).find(m=>m.k===k);
+const MATB={iron:2,mana:4,core:8};
+(function css(){const s=el("style");s.textContent=`
+.v2row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.matsel{font:inherit;font-size:14px;padding:8px 10px;border-radius:10px;border:1px solid var(--ash);background:var(--coal);color:var(--bone);max-width:100%}
+.sheath{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;margin-top:10px;background:var(--coal);border:1px dashed var(--ash);border-radius:12px;padding:8px 10px}
+.sheath .art{width:44px;height:44px;border-radius:8px;background-size:500% 400%}.sheath .ph{width:44px;height:44px;display:grid;place-items:center;font-size:22px;border-radius:8px;background:var(--soot)}
+.sheath b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sheath small{display:block;color:var(--dim);font-size:12px}
+.sheath .bt{display:flex;gap:6px}.sheath button,.v2btn{font:inherit;font-size:13px;font-weight:700;padding:8px 10px;border-radius:9px;border:1px solid var(--ember);background:transparent;color:var(--ember);cursor:pointer;white-space:nowrap}
+.sheath button:disabled,.v2btn:disabled{border-color:var(--ash);color:var(--dim);cursor:default}
+.v2card{background:var(--coal);border:1px solid var(--ash);border-radius:14px;padding:12px;margin-top:10px;display:grid;gap:8px}
+.v2card h3{margin:0;font-size:15px;display:flex;justify-content:space-between;align-items:center;gap:8px}.v2card h3 small{font-weight:600;color:var(--dim);font-size:12px}
+.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;background:var(--soot);border-radius:10px;padding:3px}
+.seg button{font:inherit;font-size:12.5px;font-weight:700;border:0;border-radius:8px;padding:8px 4px;background:transparent;color:var(--dim);cursor:pointer;line-height:1.3}
+.seg button[aria-pressed="true"]{background:var(--coal);color:var(--bone);box-shadow:inset 0 0 0 1px var(--ember)}.seg button:disabled{opacity:.4;cursor:default}
+.mats{display:flex;flex-wrap:wrap;gap:6px}.mat{display:flex;align-items:center;gap:5px;background:var(--soot);border-radius:99px;padding:4px 10px;font-size:13px}.mat b{font-variant-numeric:tabular-nums}
+.boss{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--ash)}.boss:first-of-type{border-top:0}
+.boss .fl{color:var(--dim);font-size:12px}.boss b{font-size:14px}.boss small{display:block;color:var(--dim);font-size:12px}.boss.lock{opacity:.45}
+.season{display:grid;gap:6px}.season .me{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.season .me b{font-size:20px;font-variant-numeric:tabular-nums}
+.slist{display:grid;gap:2px;font-size:13.5px}.slist div{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:6px}.slist .r{color:var(--dim)}.slist .p{font-variant-numeric:tabular-nums;color:var(--warn)}
+.bty{display:inline-block;margin-left:6px;font-size:11.5px;font-weight:800;color:#ffd25e;background:rgba(255,210,94,.12);border:1px solid rgba(255,210,94,.45);border-radius:99px;padding:0 7px}
+.rrl{display:grid;gap:8px}.rroom{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;background:var(--coal);border:1px solid var(--ash);border-radius:12px;padding:10px 12px}
+.rroom b{font-size:15px}.rroom small{display:block;color:var(--dim);font-size:12.5px}
+.rrform{display:grid;gap:8px;grid-template-columns:1fr 1fr}.rrform label{display:grid;gap:4px;font-size:12.5px;color:var(--dim)}.rrform input,.rrform select{font:inherit;font-size:15px;padding:9px 10px;border-radius:10px;border:1px solid var(--ash);background:var(--soot);color:var(--bone);min-width:0}
+.rrform .full{grid-column:1/-1}
+.rrtable{position:relative;background:radial-gradient(circle at 50% 45%,#3a2418,#1a110c 70%);border:1px solid var(--ash);border-radius:16px;padding:16px 12px;display:grid;gap:12px;text-align:center;overflow:hidden}
+.rrsword{font-size:44px;line-height:1;font-weight:800;font-variant-numeric:tabular-nums}.rrsword small{display:block;font-size:13px;font-weight:600;color:var(--dim);margin-top:4px}
+.rrps{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}.rrp{min-width:72px;padding:6px 10px;border-radius:12px;background:var(--coal);border:1px solid var(--ash);font-size:13px;font-weight:700}
+.rrp.turn{border-color:var(--ember);box-shadow:0 0 0 2px rgba(255,122,47,.35);animation:rrpulse 1s ease-in-out infinite}.rrp.out{opacity:.4;text-decoration:line-through}.rrp.me{color:var(--warn)}
+@keyframes rrpulse{50%{box-shadow:0 0 0 5px rgba(255,122,47,.15)}}
+.rrbar{height:6px;border-radius:3px;background:var(--ash);overflow:hidden}.rrbar i{display:block;height:100%;background:var(--ember);transition:width .25s linear}
+.rrpress{font:800 20px var(--f-display,inherit);padding:16px;border-radius:14px;border:0;background:linear-gradient(180deg,#ff8a3d,#d9531c);color:#fff;cursor:pointer}.rrpress:disabled{background:var(--ash);color:var(--dim);cursor:default}
+.rrlog{display:grid;gap:3px;font-size:13px;text-align:left;max-height:180px;overflow-y:auto}.rrlog .ok{color:var(--ok)}.rrlog .bad{color:var(--bad)}.rrlog .gold{color:var(--warn)}
+.rrboom{position:absolute;inset:0;display:grid;place-items:center;font-size:64px;background:rgba(160,30,20,.35);animation:rrb .9s ease-out forwards;pointer-events:none}@keyframes rrb{from{opacity:1;transform:scale(.6)}to{opacity:0;transform:scale(1.3)}}
+.pubwatch{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 10px);transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);background:var(--coal);border:1px solid var(--ember);border-radius:14px;padding:8px 12px;box-shadow:0 8px 30px rgba(0,0,0,.5);cursor:pointer;animation:pop .3s ease-out}
+.pubwatch .art{width:40px;height:40px;border-radius:8px;flex:none;background-size:500% 400%}.pubwatch div{min-width:0}.pubwatch b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pubwatch small{color:var(--dim);font-size:12px}
+.liveodds{display:flex;justify-content:center;gap:12px;font-size:12.5px;color:var(--dim);font-variant-numeric:tabular-nums}.liveodds b{font-weight:800}
+.livehist{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-top:4px}.livehist span{font-size:11.5px;padding:2px 7px;border-radius:99px;background:var(--soot)}
+@media (prefers-reduced-motion:reduce){.rrp.turn,.rrboom,.pubwatch{animation:none}}`;document.head.append(s)})();
+
+// ── 1. 강화: 재료 고르기 · 무기 효과 반영 확률 · 검집 ──
+(function forge(){const opts=document.querySelector(".opts");if(!opts)return;
+  const sel=el("select","matsel");sel.id="matSel";sel.setAttribute("aria-label","강화에 쓸 재료");opts.append(sel);
+  sel.addEventListener("change",()=>{try{localStorage.setItem("matSel",sel.value)}catch(e){}render()});
+  const sh=el("div","sheath");sh.id="sheathBox";opts.after(sh)})();
+function paintForgeV2(){if(!ST||!META)return;const sel=$("matSel");if(sel){const keep=sel.value||(()=>{try{return localStorage.getItem("matSel")||""}catch(e){return""}})();sel.innerHTML="";
+    sel.append(new Option("재료 안 씀",""));(META.mats||[]).forEach(m=>{const n=(ST.mats||{})[m.k]||0;if(n>0)sel.append(new Option(`${m.icon} ${m.n} ×${n} · ${m.use}`,m.k))});
+    sel.value=[...sel.options].some(o=>o.value===keep)?keep:"";sel.hidden=sel.options.length<=1}
+  const box=$("sheathBox");if(!box)return;box.innerHTML="";const s=ST.sheath;
+  const pic=s&&s.line!=null?(()=>{const a=el("div","art");setArt(a,s.line,s.lv);return a})():el("div","ph","🗡️");
+  const mid=el("div");mid.append(el("b",null,s?`검집: +${s.lv} ${s.name}`:"검집이 비어 있습니다"),el("small",null,s?`판매가 ${fmt(s.sell)} G${s.grade?" · "+META.grades[s.grade].n:""}${s.effect?" · ✨ "+META.effects[s.effect]:""} · 사냥에 쓸 수 있음`:"아까운 검을 넣어 두고 새 부지깽이로 시작할 수 있습니다"));
+  const bt=el("div","bt");const sw=el("button",null,s?(ST.lv>0?"바꿔 들기":"꺼내기"):"지금 검 넣기");sw.type="button";sw.disabled=(!s&&!(ST.lv>0));
+  sw.onclick=()=>{if(!s){act("sheathSwap");return}if(ST.lv>0&&sw.dataset.arm!=="1"){sw.dataset.arm="1";sw.textContent="한 번 더";setTimeout(()=>{sw.dataset.arm="";sw.textContent="바꿔 들기"},2500);return}
+    if(!s.lv)return;if(ST.lv===0&&sw.dataset.arm!=="1"&&false)return;act("sheathSwap")};
+  bt.append(sw);if(s){const sl=el("button",null,"팔기");sl.type="button";sl.onclick=()=>{if(sl.dataset.arm!=="1"){sl.dataset.arm="1";sl.textContent=`${fmt(s.sell)} G에 팔기?`;setTimeout(()=>{sl.dataset.arm="";sl.textContent="팔기"},3000);return}act("sheathSell")};bt.append(sl)}
+  box.append(pic,mid,bt)}
+// 확률: 이벤트 + 무기 효과 + 고른 재료 (서버와 같은 순서)
+oddsNow=function(lv){let [s,d]=META.odds[lv];if(evOn()){d=Math.round(d*(1-(EVENT.cut||0)/100)*10)/10;s=Math.min(100-d,s+(EVENT.bonus||0))}
+  const ef=ST&&ST.effect;if(ef==="holy")d=Math.round(d*5)/10;if(ef==="luck")s=Math.min(100-d,s+5);
+  const m=$("matSel")&&$("matSel").value;if(MATB[m])s=Math.min(100-d,s+MATB[m]);if(m==="scale")d=0;return[s,d]};
+// 강화할 때 고른 재료를 함께 보냄
+const _actV2=act;
+act=function(action,data,opt){if(action==="enhance"){const m=$("matSel")&&$("matSel").value;if(m&&((ST.mats||{})[m]||0)>0)data=Object.assign({},data||{},{mat:m})}
+  return _actV2.call(this,action,data,opt).then(()=>{afterAct(action);return ACT_LAST})};
+function afterAct(action){if(action==="enhance"){const sel=$("matSel");if(sel&&sel.value&&!((ST.mats||{})[sel.value]>0)){sel.value="";try{localStorage.setItem("matSel","")}catch(e){}}}}
+
+// ── 2. 사냥: 무기 선택 · 재료 · 숙련도 · 보스 ──
+(function huntUI(){const anchor=document.querySelector("#p-hunt .hpouch");if(!anchor)return;
+  const w=el("div","v2card");w.id="hWeapon";anchor.after(w);const m=el("div","v2card");m.id="hMats";w.after(m);
+  const b=el("div","v2card");b.id="hBoss";$("hList").after(b)})();
+const wlvOf=()=>ST.huntW?ST.huntW.lv:Math.max(ST.lv||0,(ST.sheath&&ST.sheath.lv)||0);
+renderHunt=function(){if(!ST||!META||!META.dungeons)return;HAT=Date.now();const h=ST.hunt||{d:-1,pouch:0},D=META.dungeons,cur=h.d,mast=ST.mastery||[];
+  const sc=$("hScene"),bg=HBG[Math.max(0,cur)]||HBG[0];sc.style.setProperty("--hbg1",bg[0]);sc.style.setProperty("--hbg2",bg[1]);sc.style.setProperty("--rock",ROCK_COL[Math.max(0,cur)]);
+  const maxLv=Math.max(ST.lv||0,(ST.sheath&&ST.sheath.lv)||0);
+  if(cur>=0){$("hName").innerHTML="";$("hName").append(document.createTextNode((cur+1)+"층 "+D[cur][0]));const sm=el("small",null,`${D[cur][1]} 깨는 중 · 시간당 ${fmt(ST.huntGph)} G${mast[cur]?` (숙련 +${mast[cur]}%)`:""}`);$("hName").append(sm);$("hOff").hidden=true}
+  else{$("hName").textContent="자동 사냥";const o=$("hOff");o.hidden=false;o.textContent=maxLv>0?"아래에서 던전을 고르면 사냥을 시작합니다":"+1 이상 검이 있어야 사냥할 수 있습니다 (검집 검도 됩니다)"}
+  // 무기 선택
+  const W=$("hWeapon");W.innerHTML="";const hw=ST.huntW,mode=(ST.hunt&&ST.hunt.w)||"auto";
+  const h3=el("h3");h3.append(document.createTextNode("⚔️ 사냥 무기"),el("small",null,hw?`지금: +${hw.lv} ${hw.name}`:"쓸 검이 없습니다"));W.append(h3);
+  const seg=el("div","seg");[["auto","자동",`효율 좋은 쪽`],["cur","손에 든 검",ST.lv>0?`+${ST.lv} ${ST.name}`:"없음"],["sheath","검집 검",ST.sheath?`+${ST.sheath.lv} ${ST.sheath.name}`:"비어 있음"]].forEach(([k,t,sub])=>{
+    const bt=el("button");bt.type="button";bt.setAttribute("aria-pressed",String(mode===k));bt.append(document.createTextNode(t),el("br"),Object.assign(el("small",null,sub),{style:"font-weight:500"}));
+    bt.disabled=(k==="cur"&&!(ST.lv>0))||(k==="sheath"&&!ST.sheath);bt.onclick=()=>act("huntWeapon",{w:k});seg.append(bt)});W.append(seg);
+  if(hw&&hw.line!=null&&META.lines[hw.line]&&META.lines[hw.line].e==="hunt")W.append(el("small",null,"✨ "+META.effects.hunt));
+  // 재료
+  const M=$("hMats");M.innerHTML="";const mh=el("h3");mh.append(document.createTextNode("🎒 재료"),el("small",null,"사냥 중 10분마다 확률로 얻고, 강화할 때 씁니다"));M.append(mh);
+  const ms=el("div","mats");(META.mats||[]).forEach(x=>{const c=el("span","mat");c.title=x.use;c.append(document.createTextNode(x.icon+" "+x.n+" "),el("b",null,"×"+((ST.mats||{})[x.k]||0)));ms.append(c)});M.append(ms);
+  M.append(el("small",null,"1~4층 철광석 · 5~7층 마력석 · 8~10층 용의 비늘 · 보스 보스의 핵"));
+  // 던전 목록 (검집 검 포함 가장 높은 검 기준)
+  const L=$("hList");L.innerHTML="";D.forEach((d,i)=>{const row=el("div","hrow"+(i===cur?" cur":"")+(maxLv>=d[2]?"":" lock"));
+    const nm=el("div","nm");nm.append(el("b",null,d[0]),el("small",null,`+${d[2]} 이상 · ${d[1]} · 시간당 ${fmt(d[3])} G${mast[i]?` · 숙련 +${mast[i]}%`:""}`));
+    const bt=el("button","btn");bt.type="button";if(i===cur){bt.textContent="멈추기";bt.onclick=()=>act("huntStop")}else if(maxLv>=d[2]){bt.textContent="입장";bt.onclick=()=>act("huntSet",{d:i})}else{bt.textContent=`+${d[2]} 필요`;bt.disabled=true}
+    row.append(el("div","fl",(i+1)+"층"),nm,bt);L.append(row)});
+  // 보스
+  const B=$("hBoss");B.innerHTML="";const bh=el("h3");bh.append(document.createTextNode("👑 층 보스"),el("small",null,`오늘 남은 도전 ${ST.bossLeft??0}/${META.bossPerDay||3}`));B.append(bh);
+  B.append(el("small",null,"이기면 보스의 핵 1개 + 그 층 재료 3개 + 사냥 2시간치 골드. 사냥 무기로 싸웁니다."));
+  const wl=hw?hw.lv+((META.lines[hw.line]||{}).g||0):0;
+  (META.bosses||[]).forEach((x,i)=>{const ok=hw&&hw.lv>=D[i][2];const r=el("div","boss"+(ok?"":" lock"));const p=ok?Math.round(100/(1+Math.pow(10,(x.lv-wl)/4))):0;
+    const mid=el("div");mid.append(el("b",null,x.n),el("small",null,`보스 +${x.lv}${ok?` · 이길 확률 약 ${p}%`:` · +${D[i][2]} 이상 검 필요`}`));
+    const bt=el("button","v2btn",ok?"도전":"잠김");bt.type="button";bt.disabled=!ok||!(ST.bossLeft>0);bt.onclick=()=>act("huntBoss",{d:i});
+    r.append(el("span","fl",(i+1)+"층"),mid,bt);B.append(r)});
+  tickPouch();huntAnim()};
+// 보스 싸움 연출
+async function bossShow(r){const b=r.boss;if(!b)return;const BI=["🪨","🧌","🗿","🦇","🛡️","💎","🐲","☄️","👑","🌟"];
+  await playBattle({mode:"boss",win:b.win,me:{nick:"나",line:b.me.line,lv:b.me.lv},foe:{nick:b.name,line:null,lv:b.lv,ph:BI[b.d]||"👹"},
+    sub:b.win?`보스의 핵 +1 · ${matOf(b.reward.mat).n} +${b.reward.n} · +${fmt(b.reward.gold)} G`:"다음에 다시 도전하세요"})}
+
+// ── 3. 결투장: 주간 시즌 · 현상금 ──
+(function arenaUI(){const pane=$("p-arena");if(!pane)return;const c=el("div","v2card season");c.id="seasonBox";const first=pane.querySelector(".bmode");if(first)first.before(c);else pane.prepend(c)})();
+function weekEnd(){const now=new Date(),k=new Date(now.getTime()+9*3600e3),dow=(k.getUTCDay()+6)%7;const end=Date.UTC(k.getUTCFullYear(),k.getUTCMonth(),k.getUTCDate()-dow+7)-9*3600e3;return end}
+function leftTxt(ms){const m=Math.max(0,Math.floor(ms/60000)),d=Math.floor(m/1440),h=Math.floor(m%1440/60),mi=m%60;return (d?d+"일 ":"")+(d||h?h+"시간 ":"")+mi+"분"}
+function paintSeason(){const c=$("seasonBox");if(!c||!ST||!BOARD)return;c.innerHTML="";const L=BOARD.season||[],my=ST.season||{pts:0,w:0},rank=L.findIndex(x=>x.id===ST.id);
+  const h=el("h3");h.append(document.createTextNode("🏆 이번 주 결투장 시즌"),el("small",null,"정산까지 "+leftTxt(weekEnd()-Date.now())));c.append(h);
+  const me=el("div","me");me.append(el("span",null,`내 점수${rank>=0?` · ${rank+1}위`:""}`),el("b",null,`${my.pts||0}점`));c.append(me);
+  const R=META.seasonReward||[],P=META.seasonPts||{};c.append(el("small",null,`승리 ${P.win||3}점 · 패배 ${P.lose||1}점 · 야차 승리 ${P.yachaWin||5}점. 일요일 자정에 1~3등 보상 🥇${fmt(R[0]||0)} · 🥈${fmt(R[1]||0)} · 🥉${fmt(R[2]||0)} G와 다음 주 한정 메달 마크`));
+  if(ST.bounty>0)c.append(el("small",null,`💰 지금 ${ST.streak}연승 중! 내 머리에 현상금 ${fmt(ST.bounty)} G가 걸려 있습니다.`));
+  if(L.length){const sl=el("div","slist");L.slice(0,5).forEach((x,i)=>{const r=el("div");r.append(el("span","r",(i+1)+"위"),el("span",null,nk(x.nickname,x.mark)),el("span","p",x.pts+"점"));sl.append(r)});c.append(sl)}
+  else c.append(el("small",null,"아직 이번 주 기록이 없습니다. 첫 승리로 1위에 올라 보세요."))}
+const _renderBoardV2=renderBoard;
+renderBoard=function(){_renderBoardV2.apply(this,arguments);if(!BOARD)return;paintSeason();
+  const fo=$("foes");if(fo)[...fo.querySelectorAll(".foe")].forEach((d,i)=>{const x=BOARD.foes[i];if(x&&x.bounty>0){const b=d.querySelector(".meta b");if(b&&!b.querySelector(".bty")){const t=el("span","bty","💰 "+fmt(x.bounty));b.append(t)}}});
+  const rk=$("ranking");if(rk)[...rk.querySelectorAll(".rank")].forEach((d,i)=>{const x=BOARD.ranking[i];if(x&&x.bounty>0){const b=d.querySelector(".meta b");if(b&&!b.querySelector(".bty"))b.append(el("span","bty","💰 "+fmt(x.bounty)))}})};
+setInterval(()=>{if(!$("p-arena").hidden)paintSeason()},30000);
+
+// ── 4. 러시안 강화 ──
+const RR={rooms:[],timer:0,last:null,boomFor:""};
+function rrMine(){return RR.rooms.find(r=>(r.status==="wait"||r.status==="play"||(r.status==="done"&&Date.now()-(r.turnExp||0)<120000))&&r.players.some(p=>p.id===(ST&&ST.id)))}
+async function rrLoad(){try{const r=await call("rr",{op:"list"});if(r&&r.ok&&r.rr){RR.rooms=r.rr;paintRR()}}catch(e){}}
+function rrEvent(room){const i=RR.rooms.findIndex(r=>r.id===room.id);if(i>=0)RR.rooms[i]=room;else RR.rooms.unshift(room);
+  const mine=room.players.some(p=>ST&&p.id===ST.id);
+  if(mine&&room.status==="play"&&room.players[room.turn]&&room.players[room.turn].id===ST.id&&$("p-rr").hidden){toast("🎰 러시안 강화: 내 차례입니다!");$("rrBadge").hidden=false}
+  if(mine&&room.status==="done"&&RR.last!==room.id+"done"){RR.last=room.id+"done";call("me").then(q=>{if(q&&q.ok){ST=q.state;render()}}).catch(()=>{})}
+  if(!mine&&room.status==="wait"&&room.players.length===1&&Date.now()-room.created<5000&&$("p-rr").hidden){$("rrBadge").hidden=false}
+  if(!$("p-rr").hidden)paintRR()}
+function rrModeName(m){return m==="first"?"첫 탈락자만 패배":"최후의 1인"}
+function paintRR(){const box=$("rrBox");if(!box||!ST||!META)return;const mine=rrMine();box.innerHTML="";
+  const intro=el("p","note");intro.style.margin="0 0 10px";intro.textContent=`한 자루의 검(+${(META.rr||{}).start||5}부터)을 돌아가며 강화합니다. 검을 파괴시킨 사람이 탈락! 「최후의 1인」은 끝까지 남은 1명이 판돈을 모두, 「첫 탈락자만 패배」는 처음 파괴시킨 1명만 빼고 나머지가 판돈을 나눠 가집니다. 내 차례에 ${Math.round(((META.rr||{}).turnMs||20000)/1000)}초 안에 누르지 않으면 자동으로 눌립니다.`;box.append(intro);
+  if(mine){box.append(rrRoomView(mine));return}
+  // 방 만들기
+  const f=el("form","v2card rrform");f.autocomplete="off";f.innerHTML=`<h3 class="full" style="margin:0">🎰 방 만들기</h3>
+   <label>모드<select id="rrMode"><option value="last">최후의 1인</option><option value="first">첫 탈락자만 패배</option></select></label>
+   <label>인원<select id="rrMax">${[2,3,4,5,6].map(n=>`<option${n===4?" selected":""}>${n}</option>`).join("")}</select></label>
+   <label class="full">판돈 (모두 같은 금액)<input id="rrBet" inputmode="numeric" placeholder="최소 ${fmt((META.rr||{}).minBet||1000)} G" value="100000"></label>
+   <button class="btn hot full" type="submit" style="font-size:16px;padding:12px">방 열기</button>`;
+  f.onsubmit=async e=>{e.preventDefault();const bet=parseInt(($("rrBet").value||"").replace(/\D/g,""))||0;const r=await act("rr",{op:"create",mode:$("rrMode").value,max:+$("rrMax").value,bet});if(r&&r.ok&&r.rr)RR.rooms=[...r.rr,...RR.rooms.filter(x=>x.id!==r.rr[0].id)];paintRR()};
+  box.append(f);
+  const open=RR.rooms.filter(r=>r.status==="wait"||r.status==="play");const h=el("h3",null,`열린 방 ${open.length}개`);h.style.cssText="margin:14px 0 8px;font-size:15px";box.append(h);
+  const L=el("div","rrl");if(!open.length)L.append(el("p","empty","열린 방이 없습니다. 방을 만들어 친구들을 불러 보세요."));
+  open.forEach(r=>{const d=el("div","rroom");const mid=el("div");mid.append(el("b",null,`판돈 ${fmt(r.bet)} G · ${rrModeName(r.mode)}`),el("small",null,`${r.players.map(p=>nk(p.nick,p.mark)).join(", ")} · ${r.players.length}/${r.max}명${r.status==="play"?" · 게임 중":""}`));
+    const bt=el("button","v2btn",r.status==="play"?"진행 중":r.players.length>=r.max?"가득 참":"참가");bt.type="button";bt.disabled=r.status!=="wait"||r.players.length>=r.max||ST.gold<r.bet;
+    if(r.status==="wait"&&ST.gold<r.bet)bt.textContent="골드 부족";
+    bt.onclick=async()=>{if(bt.dataset.arm!=="1"){bt.dataset.arm="1";bt.textContent=`${fmt(r.bet)} G 걸기`;setTimeout(()=>{bt.dataset.arm="";bt.textContent="참가"},3000);return}const q=await act("rr",{op:"join",id:r.id});if(q&&q.ok&&q.rr)rrEvent(q.rr[0]);paintRR()};
+    d.append(mid,bt);L.append(d)});box.append(L)}
+function rrRoomView(r){const w=el("div");const me=ST.id,host=r.host===me,turnP=r.players[r.turn],myTurn=r.status==="play"&&turnP&&turnP.id===me;
+  const head=el("div","v2card");const h=el("h3");h.append(document.createTextNode(`🎰 판돈 ${fmt(r.pot)} G`),el("small",null,`${rrModeName(r.mode)} · 1인 ${fmt(r.bet)} G`));head.append(h);w.append(head);
+  const t=el("div","rrtable");const od=(META.odds||[])[Math.min(r.lv,19)]||[0,0];
+  const sw=el("div","rrsword",r.status==="wait"?"대기 중":"+"+r.lv);sw.append(el("small",null,r.status==="play"?`성공 ${od[0]}% · 유지 ${Math.round((100-od[0]-od[1])*10)/10}% · 파괴 ${od[1]}%${r.round>1?` · ${r.round}번째 검`:""}`:r.status==="wait"?`${r.players.length}/${r.max}명 · 2명 이상이면 방장이 시작`:"게임 끝"));t.append(sw);
+  const ps=el("div","rrps");r.players.forEach((p,i)=>{const c=el("span","rrp"+(r.status==="play"&&i===r.turn?" turn":"")+(p.alive?"":" out")+(p.id===me?" me":""),nk(p.nick,p.mark)+(p.id===r.host?" 👑":""));ps.append(c)});t.append(ps);
+  if(r.status==="play"){const bar=el("div","rrbar");const bi=el("i");bar.append(bi);t.append(bar);
+    const upd=()=>{const left=Math.max(0,r.turnExp-Date.now());bi.style.width=(left/((META.rr||{}).turnMs||20000)*100)+"%";if(!bar.isConnected)clearInterval(iv)};const iv=setInterval(upd,250);upd();
+    t.append(el("p","note",myTurn?"내 차례! 강화 버튼을 누르세요":`${turnP?turnP.nick:""}님 차례`));
+    const pb=el("button","rrpress",myTurn?"🔨 강화!":"기다리는 중");pb.type="button";pb.disabled=!myTurn;
+    pb.onclick=async()=>{pb.disabled=true;try{if(SOUND)sfx("hammer")}catch(e){}const q=await call("rr",{op:"press",id:r.id});if(q&&q.ok){if(q.state)ST=q.state;if(q.rr)rrEvent(q.rr[0]);render()}else if(q)toast(q.error)};t.append(pb)}
+  if(r.status==="done"&&r.result){const res=el("div");res.append(el("b",null,`🏁 ${r.result.winners.join(", ")}님 승리! ${fmt(r.result.each)} G씩`));res.style.fontSize="17px";t.append(res);
+    const again=el("button","v2btn","목록으로");again.type="button";again.onclick=()=>{RR.rooms=RR.rooms.filter(x=>x.id!==r.id);paintRR()};t.append(again)}
+  // 파괴 연출
+  const lastBoom=[...r.log].reverse().find(x=>x.kind==="bad");if(lastBoom&&RR.boomFor!==r.id+lastBoom.t&&Date.now()-lastBoom.t<4000){RR.boomFor=r.id+lastBoom.t;const b=el("div","rrboom","💥");t.append(b);setTimeout(()=>b.remove(),900);try{if(SOUND)sfx("destroy",3)}catch(e){}if(navigator.vibrate)try{navigator.vibrate([80,50,120])}catch(e){}}
+  w.append(t);
+  if(r.status==="wait"){const row=el("div","v2row");if(host){const st=el("button","btn hot","게임 시작");st.type="button";st.disabled=r.players.length<2;st.onclick=async()=>{const q=await act("rr",{op:"start",id:r.id});if(q&&q.rr)rrEvent(q.rr[0])};row.append(st)}
+    const lv=el("button","btn",host?"방 닫기 (환불)":"나가기 (환불)");lv.type="button";lv.onclick=async()=>{const q=await act("rr",{op:"leave",id:r.id});if(q&&q.rr)rrEvent(q.rr[0]);RR.rooms=RR.rooms.filter(x=>x.id!==r.id||x.status!=="gone");paintRR()};row.append(lv);w.append(row)}
+  const lg=el("div","v2card rrlog");[...r.log].reverse().forEach(x=>lg.append(el("div",x.kind,x.text)));w.append(lg);return w}
+// 러시안 강화 화면을 보고 있거나 내가 방에 있으면 자주 불러옴 (차례 시간 초과도 이때 처리됨)
+setInterval(()=>{if(document.visibilityState!=="visible"||!ST)return;const mine=rrMine();if(!$("p-rr").hidden||(mine&&mine.status==="play"))rrLoad()},4000);
+const _showTabV2=showTab;showTab=function(t){_showTabV2.apply(this,arguments);if(t==="rr"){$("rrBadge").hidden=true;paintRR();rrLoad()}};
+document.querySelectorAll('.tabs button[data-tab="rr"]').forEach(b=>b.onclick=()=>showTab("rr"));
+
+// ── 5. 공개 강화: 다른 탭에 있어도 보이는 실시간 알림 · 강화 직전 확률 · 최근 결과 ──
+const _showLiveV2=showLive;
+showLive=function(e){
+  if(e.type==="rr"){rrEvent(e.room);return}
+  _showLiveV2.apply(this,arguments);
+  if(e.type!=="enh")return;
+  // 무대 아래에 이번 강화 확률과 최근 결과
+  const stg=$("liveStage");if(stg){let o=stg.querySelector(".liveodds");if(!o){o=el("div","liveodds");stg.append(o)}o.innerHTML="";const od=e.odds||[0,0];
+    o.append(Object.assign(el("span"),{innerHTML:`성공 <b style="color:var(--ok)">${od[0]}%</b>`}),Object.assign(el("span"),{innerHTML:`파괴 <b style="color:var(--bad)">${od[1]}%</b>`}));
+    let hi=stg.querySelector(".livehist");if(!hi){hi=el("div","livehist");stg.append(hi)}setTimeout(()=>{const [rt,rc]=RES[e.result]||["",""];const c=el("span",null,`${e.nick} +${e.before}→${rt}`);c.style.color=rc;hi.prepend(c);while(hi.children.length>6)hi.lastChild.remove()},1250)}
+  if(ST&&e.id===ST.id)return;
+  if(!$("p-live").hidden)return;
+  // 다른 탭이면 위쪽에 떠서 바로 보러 갈 수 있게
+  document.querySelectorAll(".pubwatch").forEach(x=>x.remove());const pw=el("div","pubwatch");pw.setAttribute("role","button");pw.tabIndex=0;
+  if(e.beforeLine!=null&&e.before>0){const a=el("div","art");setArt(a,e.beforeLine,e.before);pw.append(a)}
+  const tx=el("div");const b=el("b",null,`📺 ${nk(e.nick,e.mark)}님 +${e.before} 공개 강화!`);const sm=el("small",null,`성공 ${(e.odds||[0])[0]}% · 두구두구…`);tx.append(b,sm);pw.append(tx);document.body.append(pw);
+  pw.onclick=()=>{pw.remove();showTab("live")};pw.onkeydown=ev=>{if(ev.key==="Enter")pw.onclick()};
+  setTimeout(()=>{const [rt,rc]=RES[e.result]||["",""];sm.textContent=`→ +${e.after} ${rt}`;sm.style.color=rc;try{if(SOUND&&(e.result==="success"||e.result==="destroy"))sfx(e.result,2)}catch(x){}},1200);
+  setTimeout(()=>pw.remove(),5200)};
+
+// ── 상태가 바뀔 때마다 새 화면 갱신, 보스·재료 알림 ──
+const _renderV2=render;
+render=function(){_renderV2.apply(this,arguments);try{paintForgeV2()}catch(e){console.log(e)}};
+const _actV2c=act;
+act=function(action,data,opt){return _actV2c.call(this,action,data,opt).then(async()=>{const r=ACT_LAST;
+  if(r&&r.ok&&r.boss){try{await bossShow(r)}catch(e){}if(!$("p-hunt").hidden)renderHunt()}
+  if(r&&r.ok&&r.mats&&r.mats.length)toast("🎒 사냥 재료: "+r.mats.map(m=>`${(matOf(m.k)||{}).n||m.k} +${m.n}`).join(", "));
+  if(r&&r.ok&&(action==="huntWeapon"||action==="sheathSwap"||action==="sheathSell")&&!$("p-hunt").hidden)renderHunt();
+  if(r&&r.ok&&r.bounty)toast(`💰 현상금 ${fmt(r.bounty)} G 획득!`);
+  return r})};
 </script>
 <script>// ════ 완성도 보강: 상황을 읽는 대장장이 · 골드 숫자 굴러가기 · 등급 오라 · 연속 성공 표시 · 진동 ════
 // 기존 함수(quip, quipFor, fx, render, playBattle)를 감싸서 동작을 더합니다. 서버 규칙은 건드리지 않습니다.
