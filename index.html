@@ -200,6 +200,14 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
 .give{display:grid;gap:8px;background:var(--coal);border:1px solid var(--ash);border-radius:12px;padding:12px;margin:12px 0}
 .give select,.give input{font:inherit;font-size:15px;color:var(--bone);background:var(--soot);border:1px solid var(--ash);border-radius:10px;padding:10px;width:100%}
 .give .row3{display:grid;grid-template-columns:1fr auto;gap:8px}
+.hlist{display:grid;gap:6px;max-height:420px;overflow-y:auto}
+.hisrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;background:var(--soot);border:1px solid var(--ash);border-radius:10px;padding:8px 10px;font-size:13px}
+.hisrow b{color:var(--bone);font-weight:600}.hisrow span{display:block;color:var(--dim);margin-top:2px}
+.hisrow .up{color:var(--ok)}.hisrow .dn{color:var(--bad)}
+.hisrow button{width:auto!important;flex:none;font:inherit;font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid var(--ash);background:var(--coal);color:var(--bone);cursor:pointer;white-space:nowrap}
+.hisrow button[data-arm="1"]{background:var(--bad);color:#fff;border-color:var(--bad)}
+.danger{border-color:var(--bad)!important}.danger b{color:var(--bad)}
+.give .hint{font-size:12.5px;color:var(--dim);line-height:1.5;margin:0}
 @media (prefers-reduced-motion:reduce){.shake1,.shake2,.shake3{animation:none}.flash.go{animation:none}}
 
 .art{image-rendering:auto;width:230px;height:230px;max-width:100%;background-repeat:no-repeat;background-size:500% 400%;border-radius:18px;position:relative;z-index:1;transition:filter .3s}
@@ -1054,6 +1062,7 @@ async function loadAdmin(){const box=$("adminBox");box.innerHTML='<p class="empt
     $("giveBtn").onclick=async()=>{const id=$("giveTo").value,amt=Number(String($("giveAmt").value).replace(/[,\s]/g,""));if(!id||!amt){toast("받는 사람과 금액을 넣어 주세요");return}
       const gb=$("giveBtn");if(gb.dataset.arm!=="1"){gb.dataset.arm="1";gb.textContent="확인";setTimeout(()=>{gb.dataset.arm="";gb.textContent="보내기"},3000);toast(`${$("giveTo").selectedOptions[0].textContent.split(" · ")[0]}님에게 ${fmt(amt)} G — 한 번 더 누르면 보냅니다`);return}
       gb.dataset.arm="";gb.textContent="보내기";const q=await call("give",{id,amount:amt,memo:$("giveMemo").value});toast(q.ok?`${q.nickname}님 잔액 ${fmt(q.gold)} G`:q.error);if(q.ok){$("giveAmt").value="";$("giveMemo").value="";loadMe();loadAdmin()}};
+    buildHistory(box);buildPitr(box);
     const h=document.createElement("p");h.className="note";h.textContent=`승인 대기 ${r.list.length}명`;box.append(h);
     if(!r.list.length){const e=document.createElement("p");e.className="empty";e.textContent="기다리는 신청이 없습니다.";box.append(e)}
     r.list.forEach(x=>{const d=document.createElement("div");d.className="pend";d.innerHTML='<div class="meta"><b></b><span></span></div><div class="b2"><button class="no">거절</button><button class="ok">승인</button></div>';
@@ -1062,6 +1071,43 @@ async function loadAdmin(){const box=$("adminBox");box.innerHTML='<p class="empt
       const no=d.querySelector(".no");no.onclick=async()=>{if(no.dataset.arm!=="1"){no.dataset.arm="1";no.textContent="한 번 더";setTimeout(()=>{no.dataset.arm="";no.textContent="거절"},2500);return}const q=await call("reject",{id:x.id});toast(q.ok?"거절했습니다":q.error);loadAdmin()};
       box.append(d)})}
   catch(e){box.innerHTML='<p class="empty">불러오지 못했습니다.</p>'}}
+
+// ── 개인 기록 조회·되돌리기 (최근 7일) ──
+function buildHistory(box){const w=document.createElement("div");w.className="give";
+  w.innerHTML='<b>기록 조회 · 되돌리기</b><p class="hint">강화·판매·배틀·선물·사냥 등 골드나 검이 바뀔 때마다 그때 상태를 남깁니다 (7일 보관). 「이 시점으로」를 누르면 그 줄의 <b>결과 상태</b>로 되돌립니다.</p><select id="histWho" aria-label="플레이어"><option value="">플레이어 선택</option></select><div class="hlist" id="histList"></div>';box.append(w);
+  call("roster").then(q=>{const sel=$("histWho");if(!q.ok)return;q.list.forEach(p=>{const o=document.createElement("option");o.value=p.id;o.textContent=`${p.nickname} · +${p.lv} · ${fmt(p.gold)} G`;sel.append(o)})});
+  $("histWho").onchange=()=>loadHistory($("histWho").value,0,false)}
+async function loadHistory(id,before,more){const list=$("histList");if(!id){list.innerHTML="";return}
+  if(!more)list.innerHTML='<p class="empty">불러오는 중…</p>';const q=await call("history",{id,before});
+  if(!more)list.innerHTML="";else{const m=list.querySelector(".more");if(m)m.remove()}
+  if(!q.ok){list.append(document.createTextNode(q.error));return}
+  if(!q.list.length&&!more){list.innerHTML='<p class="empty">최근 7일 기록이 없습니다.</p>';return}
+  q.list.forEach(h=>{const d=document.createElement("div");d.className="hisrow";const dg=h.gold1-h.gold0,dl=h.lv1-h.lv0;
+    d.innerHTML='<div><b></b><span></span></div>';d.querySelector("b").textContent=`${h.t} · ${h.act}`;
+    const sp=d.querySelector("span");sp.append(`+${h.lv1} ${h.name} `);
+    if(dl){const e=document.createElement("em");e.className=dl>0?"up":"dn";e.textContent=`(${dl>0?"+":""}${dl}강) `;e.style.fontStyle="normal";sp.append(e)}
+    sp.append(`· ${fmt(h.gold1)} G `);if(dg){const e=document.createElement("em");e.className=dg>0?"up":"dn";e.style.fontStyle="normal";e.textContent=`(${dg>0?"+":""}${fmt(dg)})`;sp.append(e)}
+    const bt=document.createElement("button");bt.type="button";bt.textContent="이 시점으로";
+    bt.onclick=async()=>{if(bt.dataset.arm!=="1"){bt.dataset.arm="1";bt.textContent="한 번 더";setTimeout(()=>{bt.dataset.arm="";bt.textContent="이 시점으로"},3000);toast(`${q.nickname}님을 ${h.t} 상태(+${h.lv1}, ${fmt(h.gold1)} G)로 되돌립니다 — 한 번 더 누르세요`);return}
+      bt.disabled=true;const r=await call("restore",{hid:h.id});toast(r.ok?`${r.nickname}님을 ${r.when} 상태로 되돌렸습니다`:r.error);if(r.ok){loadMe();loadHistory(id,0,false)}else bt.disabled=false};
+    d.append(bt);list.append(d)});
+  if(q.list.length>=40){const m=document.createElement("button");m.type="button";m.className="link more";m.textContent="더 이전 기록";m.onclick=()=>loadHistory(id,q.list[q.list.length-1].ts,true);list.append(m)}}
+// ── 서버 전체 되돌리기 (비상용, 최근 30일) ──
+function kstInput(ms){const d=new Date(ms),z=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`}
+function buildPitr(box){const w=document.createElement("div");w.className="give danger";
+  w.innerHTML='<b>⚠️ 서버 전체 되돌리기 (비상용)</b><p class="hint">모든 플레이어·채팅·설정이 고른 시각의 상태로 돌아갑니다. 그 뒤에 한 일은 모두 사라집니다. 되돌린 뒤 나오는 <b>취소 코드</b>로 되돌리기 직전 상태로 다시 돌아올 수 있습니다. 최근 30일 안만 됩니다.</p><input type="datetime-local" id="pitrAt" aria-label="되돌릴 시각"><input id="pitrWord" placeholder="확인하려면 「되돌리기」 입력" aria-label="확인 문구" autocomplete="off"><button class="btn hot" type="button" id="pitrGo" style="font-size:15px;padding:10px">이 시각으로 서버 전체 되돌리기</button><details><summary style="cursor:pointer;color:var(--dim);font-size:13px">되돌리기 취소 (취소 코드로 복구)</summary><div style="display:grid;gap:8px;margin-top:8px"><input id="pitrUndoCode" placeholder="취소 코드" aria-label="취소 코드" autocomplete="off"><button class="btn" type="button" id="pitrUndo" style="font-size:15px;padding:10px">취소 코드 시점으로 복구</button></div></details><p class="hint" id="pitrOut"></p>';box.append(w);
+  $("pitrAt").value=kstInput(Date.now()-3600000);$("pitrAt").max=kstInput(Date.now());$("pitrAt").min=kstInput(Date.now()-29*86400000);
+  let last="";try{last=localStorage.getItem("pitrUndo")||""}catch(e){}if(last){$("pitrUndoCode").value=last;$("pitrOut").textContent="마지막 취소 코드가 이 기기에 저장되어 있습니다."}
+  const show=(r,label)=>{if(!r.ok){$("pitrOut").textContent=r.error;$("pitrOut").style.color="var(--bad)";return}
+    try{localStorage.setItem("pitrUndo",r.undo)}catch(e){}$("pitrUndoCode").value=r.undo;$("pitrOut").style.color="var(--bone)";
+    $("pitrOut").textContent=`${label} 완료. 취소 코드(이 기기에 저장됨): ${r.undo}`;toast(label+" 완료 · 몇 초 뒤 새로고침합니다");setTimeout(()=>location.reload(),4000)};
+  $("pitrGo").onclick=async()=>{const t=new Date($("pitrAt").value).getTime();if(!t){toast("시각을 고르세요");return}
+    if($("pitrWord").value.trim()!=="되돌리기"){toast("확인 문구 「되돌리기」를 입력하세요");$("pitrWord").focus();return}
+    const g=$("pitrGo");if(g.dataset.arm!=="1"){g.dataset.arm="1";g.textContent="정말 되돌립니다 (한 번 더)";setTimeout(()=>{g.dataset.arm="";g.textContent="이 시각으로 서버 전체 되돌리기"},4000);return}
+    g.disabled=true;const r=await call("pitrRestore",{time:t});g.disabled=false;g.dataset.arm="";g.textContent="이 시각으로 서버 전체 되돌리기";$("pitrWord").value="";show(r,`${$("pitrAt").value.replace("T"," ")} 시점으로 되돌리기`)};
+  $("pitrUndo").onclick=async()=>{const c=$("pitrUndoCode").value.trim();if(!c){toast("취소 코드를 넣으세요");return}
+    const b=$("pitrUndo");if(b.dataset.arm!=="1"){b.dataset.arm="1";b.textContent="한 번 더 누르면 복구";setTimeout(()=>{b.dataset.arm="";b.textContent="취소 코드 시점으로 복구"},4000);return}
+    b.disabled=true;const r=await call("pitrUndo",{bookmark:c});b.disabled=false;show(r,"취소 코드 시점으로 복구")}}
 
 // ── 공개 강화 라이브 ──
 let LSEQ=-1,liveTimer=null,lastLive=null;
@@ -1081,8 +1127,9 @@ function leaveChannel(){if(!inChannel)return;inChannel=false;clearInterval(watch
 addEventListener("pagehide",()=>{if(inChannel)sendWatch(true)});
 let LIVE_P=null,LIVE_FAIL=0;
 let WS=null,WS_OK=false,WS_TRY=0;
+let WS_SEEN=false;
 function openWS(){if(WS)return;try{WS=new WebSocket(API_URL.replace(/^http/,"ws").replace(/\/+$/,"")+"/ws")}catch(e){WS=null;return}
-  WS.onopen=()=>{WS_OK=true;WS_TRY=0;pollLive();if(typeof checkPatch==="function")checkPatch()};
+  WS.onopen=()=>{const re=WS_SEEN;WS_SEEN=true;WS_OK=true;WS_TRY=0;pollLive();if(re&&ST&&typeof loadMe==="function")loadMe();if(typeof checkPatch==="function")checkPatch()};
   WS.onmessage=e=>{if(e.data==="live")pollLive()};
   WS.onclose=()=>{WS_OK=false;WS=null;setTimeout(openWS,Math.min(30000,1000*Math.pow(2,WS_TRY++)))};
   WS.onerror=()=>{try{WS.close()}catch(e){}}}
@@ -1151,6 +1198,7 @@ function paintStage(e,instant){lastLive=e;const st=$("liveStage");const [rt,rc]=
 function showLive(e){
   if(e.type==="high"){showHigh(e);return}
   if(e.type==="drop"){if(ST&&e.to===ST.id)showDropAlert(e);return}
+  if(e.type==="restored"){if(ST&&e.to===ST.id){toast(`관리자가 내 기록을 ${e.when} 시점으로 되돌렸습니다`);loadMe()}return}
   if(e.type==="gift"){if(ST&&e.to===ST.id){toast(`🎁 ${e.nick}님이 ${fmt(e.amount)} G를 보냈습니다!${e.note?" \""+e.note+"\"":""}`);try{if(SOUND)sfx("coin",6)}catch(x){}call("me").then(q=>{if(q&&q.ok){ST=q.state;render()}}).catch(()=>{})}return}
   if(e.type==="cheer"){floatEmoji(e.emoji);if(ST&&e.to===ST.id&&e.id!==ST.id)toast(`${e.nick}님이 응원합니다 ${e.emoji}`);return}
   paintStage(e,false);$("liveDot").hidden=false;setTimeout(()=>$("liveDot").hidden=true,8000);
@@ -1331,7 +1379,7 @@ async function openHunt(){if(META&&!META.dungeons){try{const m=await call("boots
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794372436;
+const BUILD=1794376754;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
