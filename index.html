@@ -57,6 +57,17 @@ h1 small{display:block;font-family:var(--f-body);font-size:12px;color:var(--dim)
 /* 모루 */
 .anvil{background:var(--soot);border:1px solid var(--ash);border-radius:20px;padding:20px;display:grid;gap:16px;position:relative;overflow:hidden}
 .stage{display:grid;place-items:center;height:250px;position:relative}
+.stage{isolation:isolate}.stage::before{content:"";position:absolute;z-index:-1;width:min(340px,100%);aspect-ratio:1;border-radius:50%;opacity:0;pointer-events:none;transition:opacity .4s}
+.stage.aura1::before{opacity:1;background:radial-gradient(circle,rgba(95,180,255,.30),rgba(95,180,255,0) 68%);animation:aura 3.2s ease-in-out infinite}
+.stage.aura2::before{opacity:1;background:radial-gradient(circle,rgba(197,140,255,.36),rgba(197,140,255,0) 68%);animation:aura 2.6s ease-in-out infinite}
+.stage.aura3::before{opacity:1;background:conic-gradient(from 0deg,rgba(255,176,58,.0),rgba(255,176,58,.42),rgba(255,90,40,.0),rgba(255,210,90,.42),rgba(255,176,58,.0));filter:blur(14px);animation:spin 6s linear infinite}
+@keyframes aura{50%{transform:scale(1.12)}}@keyframes spin{to{transform:rotate(360deg)}}
+.streak{position:absolute;top:8px;left:8px;font-size:12.5px;font-weight:800;color:#ffd08a;background:rgba(255,122,47,.16);border:1px solid rgba(255,122,47,.5);border-radius:99px;padding:3px 10px;animation:pop .35s ease-out}
+@keyframes pop{from{transform:scale(.6);opacity:0}}
+.chip{position:relative}.gdelta{position:absolute;right:6px;top:-6px;font-size:12px;font-weight:800;pointer-events:none;animation:gfloat 1.3s ease-out forwards;white-space:nowrap}
+.gdelta.up{color:var(--ok)}.gdelta.dn{color:var(--bad)}@keyframes gfloat{from{transform:translateY(4px);opacity:0}15%{opacity:1}to{transform:translateY(-16px);opacity:0}}
+.smith{transition:transform .12s}.smith:active{transform:scale(.98)}
+@media (prefers-reduced-motion:reduce){.stage::before,.streak,.gdelta{animation:none!important}}
 .stage canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 #sword{height:230px;width:auto;transition:filter .3s;position:relative;z-index:1}
 .lvl{font-family:var(--f-display);font-size:clamp(54px,14vw,72px);line-height:1;text-align:center;font-variant-numeric:tabular-nums}
@@ -665,8 +676,9 @@ const descOf=(l,line)=>l===0||line==null?(META.baseDesc||""):((META.lines[line].
 function toast(t){const e=$("toast");e.textContent=t;e.classList.add("on");clearTimeout(toast.h);toast.h=setTimeout(()=>e.classList.remove("on"),1800)}
 function result(t,col,cls){const r=$("result");r.textContent=t;r.style.color=col;const sw=$("art").hidden?$("sword"):$("art");sw.classList.remove("shake","pop");void sw.offsetWidth;if(cls)sw.classList.add(cls)}
 
+const GCOL=["","#5fb4ff","#c58cff","#ffb03a"];
 function paintSword(){const art=$("art"),svg=$("sword");
-  if(ST.line!=null&&ST.lv>0&&SPRFAIL[ST.line]!==true){art.hidden=false;svg.style.display="none";setArt(art,ST.line,ST.lv);const c0=ST.hidden?css("--t4"):css(tierOf(ST.lv).c);art.style.filter=ST.lv>=5?`drop-shadow(0 0 ${6+Math.min(1,ST.lv/20)*22}px ${c0})`:"none"}
+  if(ST.line!=null&&ST.lv>0&&SPRFAIL[ST.line]!==true){art.hidden=false;svg.style.display="none";setArt(art,ST.line,ST.lv);const c0=ST.grade?GCOL[ST.grade]:ST.hidden?css("--t4"):css(tierOf(ST.lv).c);art.style.filter=ST.lv>=5?`drop-shadow(0 0 ${6+Math.min(1,ST.lv/20)*22}px ${c0})`:"none"}
   else{art.hidden=true;svg.style.display=""}
 const t=tierOf(ST.lv),c=ST.hidden?css("--t4"):css(t.c),glow=Math.min(1,ST.lv/20);
   $("s0").setAttribute("stop-color",ST.lv<3?"#5a3a24":"#2a2a2a");$("s1").setAttribute("stop-color",c);$("s2").setAttribute("stop-color",ST.lv<3?"#4a2c1a":"#3a3a3a");
@@ -1691,7 +1703,7 @@ async function openHunt(){if(META&&!META.dungeons){try{const m=await call("boots
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794395460;
+const BUILD=1794420706;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
@@ -1733,6 +1745,129 @@ async function openPatchList(){if(document.getElementById("patchList"))return;if
     const d=document.getElementById("patchDot");if(d)d.hidden=true}
   catch(e){list.innerHTML='<p class="empty">패치노트를 불러오지 못했습니다.</p>'}}
 (function(){const b=document.getElementById("patchBtn");if(b)b.onclick=openPatchList;refreshPatchDot()})();
+</script>
+<script>// ════ 완성도 보강: 상황을 읽는 대장장이 · 골드 숫자 굴러가기 · 등급 오라 · 연속 성공 표시 · 진동 ════
+// 기존 함수(quip, quipFor, fx, render, playBattle)를 감싸서 동작을 더합니다. 서버 규칙은 건드리지 않습니다.
+Object.assign(QUIP,{
+greetDawn:["새벽 {h}시? 너도 잠 안 오는구나. 나도 망치 소리 없으면 잠이 안 와.","이 시간에 강화하는 사람은 둘 중 하나야. 천재거나, 중독이거나. 넌 후자.","새벽 감성으로 누르면 확률이 오른다는 소문… 내가 낸 거야. 근거는 없어."],
+greetMorning:["좋은 아침! 화로는 이미 달궈 놨어. 커피는 네가 사 와.","아침 강화는 하루 운세를 정하지. 오늘 운세: 내가 망치를 든다. 끝.","출근 전에 한 판? 성실하네. 그 성실함 쇠한테도 좀 나눠 줘."],
+greetDay:["왔어? 점심은 먹었어? 배고픈 손님은 버튼을 너무 세게 눌러.","낮에는 손님이 많아. 너는 VIP니까 줄 안 서도 돼. 대신 팁은 골드로.","오후의 망치질은 각도가 예술이지. 햇빛이 쇠를 응원하거든."],
+greetEvening:["저녁이다. 하루 동안 쌓인 한을 쇠에 풀어 봐. 쇠가 받아 줄지는 모르지만.","퇴근했어? 나는 퇴근이 없어. 천재는 쉬지 않거든. 사실 쉬고 싶어.","밤 강화는 분위기 있지. 파괴돼도 조명 덕에 예뻐 보여."],
+greetBroke:["어… 지갑 사정이 안 좋아 보이는데? 사냥이라도 다녀오는 게 어때?","골드가 얇다. 망치질은 공짜가 아니야, 친구."],
+greetRich:["오, 부자 손님 오셨네! 오늘은 뭘 부숴… 아니, 뭘 키워 드릴까?","주머니가 두둑하네. 이럴 때 대담하게 가는 거야. 책임은 안 져."],
+lowSuccess:["+{lv}? 이 정도는 몸풀기지. 진짜는 두 자릿수부터야.","아직 귀엽네, {name}. 이빨 나기 전의 강아지 같아.","좋아, 시동 걸렸다. 망치가 이제 막 손에 붙기 시작했어."],
+highSuccess:["+{lv}!!! 손이 떨렸는데 망치는 안 떨렸어. 이게 프로야.","{name}… 이 단계는 하늘이 허락해야 나와. 하늘이 나를 좋아하나 봐.","방금 화로가 박수 쳤어. 진짜야. 탁탁 소리 들었잖아.","+{lv}이라니. 옆 동네 대장장이한테 전화해서 자랑해야겠다."],
+hotStreak:["{n}연속 성공! 오늘 망치에 뭐가 씌었나 봐. 멈추지 마!","{n}번 연달아? 이건 실력이야. 운이라고 하면 서운하다.","연승이다! 지금 이 흐름, 내 손목이 기억하고 있어."],
+comeback:["거봐, 부서진 뒤에 다시 일어나는 게 진짜 대장장이 정신이야.","눈물 닦고 다시 성공! 이 맛에 망치 든다.","지난번 일은 잊어. 우린 이미 새로운 전설을 쓰는 중이야."],
+eventSuccess:["이벤트 기운 받았지? 근데 솔직히 내 실력이 9할이야.","축제 날엔 쇠도 기분이 좋아. 이럴 때 몰아서 두드려!","이벤트 중이라 성공한 거 아니냐고? 쉿. 그런 말 하면 쇠가 삐져."],
+highKeep:["휴… 유지. 이 단계에선 유지도 축복이야. 심장 괜찮아?","+{lv}에서 버텼다. 나 방금 숨 참고 있었어.","유지다! 이 높이에선 떨어지지 않은 걸 감사해야 해."],
+keepStreak:["유지만 {n}번째… 쇠가 나랑 기 싸움하는 중이야. 내가 이긴다.","또 유지? 이 검, 고집이 나 닮았네.","{n}연속 유지라니. 쇠가 시간을 멈추는 능력이 생겼나 봐."],
+highDestroy:["…+{prev}였는데. 말이 안 나온다. 오늘은 내가 술 살게.","이건 사고야. 대형 사고. 근데 기록에는 '명예로운 산화'라고 적어 둘게.","+{prev}가… 아니야, 괜찮아. 검은 부서져도 기억은 남아. 기억만 남아."],
+destroyStreak:["또…? 잠깐, 화로 점검 좀 하고 올게. 화로 탓이야 분명히.","연속 파괴라니. 오늘은 별자리가 대장간을 싫어하나 봐.","괜찮아, 이건 바닥을 다지는 거야. 바닥이 아주 단단해졌어."],
+tapHit:["명중! 너 손맛 좀 아는구나. 내 제자 할래?","바로 그 자리! 노란 곳을 정확히 때렸어. 쇠가 감동받았대.","오, 타이밍 봐라. 리듬 게임 했었어?"],
+tapMiss:["빗나갔네. 괜찮아, 나도 처음엔 모루를 때렸어.","손이 반 박자 빨랐어. 아니 느렸나? 아무튼 내 탓은 아니야.","노란 데를 때려야지! 쇠가 '거기 아닌데…' 했어."],
+battleWin:["이겼다! 역시 내가 두드린 검이야. 상대 검이 울면서 갔어.","승리! 상금은 받았지? 수리비 명목으로 조금만 나눠 줘.","봤냐, 이게 장인의 검이다. 결투장에 내 이름 걸어도 돼."],
+battleLose:["졌어? 검이 아니라 상성 탓이야. 아니면 그날 바람 탓.","패배도 수업이야. 수업료가 좀 비쌌을 뿐.","괜찮아. 진짜 승부는 대장간에서 나는 거야. 다시 두드리자."],
+yachaWin:["야차 배틀 승리! 상대 검은 고철상으로… 전리품 챙겼지?","무서운 걸 해냈구나. 지금 너 눈빛이 야차 같아.","목숨 건 승부에서 이겼다. 오늘 밤 꿈에 상대 검이 나올 거야."],
+yachaLose:["…검이 팔려 갔구나. 그래도 골드는 남았어. 다시 시작하자.","야차는 원래 무서운 거야. 다음엔 우리가 야차가 되자.","잃은 검은 잊고, 새 부지깽이를 사랑해 줘. 걔도 상처받았어."],
+hunt:["사냥 간다고? 바위 조심해. 바위가 너를 조심하겠지만.","좋아, 그 검으로 돌 좀 깨고 와. 칼날은 내가 나중에 갈아 줄게.","던전 가는 거면 도시락 챙겨. 고블린은 간식 뺏어 가."],
+claim:["사냥 수확 왔네! 돌가루 냄새 나는 골드다.","이 골드로 뭘 할지 알지? 그래, 망치 소리로 바꾸는 거야.","오, 짭짤한데? 바위들이 꽤 고생했겠어."],
+gift:["선물을 보냈어? 마음이 넓구나. 나한테도 넓어 줘.","나눔은 아름답지. 강화비 나누는 건 더 아름답고.","친구한테 골드를? 그 친구 오늘 운 좋네."],
+poke:["왜 찔러? 나 지금 영감 떠오르는 중이었어.","간지러워. 망치 든 사람 건드리는 거 아니다.","말 걸어 줘서 고마워. 사실 좀 심심했어.","질문 있어? 확률은 비밀이야. 사실 위에 다 나와 있어.","나를 누르는 시간에 강화를 누르는 게 어때?","손님, 대장간 안에서 대장장이 만지시면 안 됩니다.","오늘의 명언: 망치는 거짓말을 안 한다. 대장장이는 가끔 한다.","내가 왜 괴짜냐고? 천재는 원래 이상해 보여.","그 검, 이름 마음에 들어? 내가 밤새 지었어. 반은 거짓말.","배고프다… 너 혹시 붕어빵 있어?"],
+idle:["…어이, 졸아? 화로 식는다.","망치가 심심하대. 한 번만 두드려 줘.","가만히 있으면 쇠가 녹스는 거 알지? 농담이야. 아마.","오늘 업적 탭은 봤어? 마크 달면 꽤 멋있어.","사냥 보내 놓고 강화하면 일석이조야. 내가 생각해도 천재적이다.","결투장에 레어 검 들고 가면 +1 보정이야. 몰랐지?","이벤트 공지 뜨면 바로 와. 그날은 내 망치가 날아다녀.","요즘 단톡방 조용하던데, 공개 강화 한 번 보여 줘 봐.","야차 배틀은 무서운 거야. 진짜 자신 있을 때만 해."]
+});
+// 계열별 한마디 (레어 위주)
+const LINE_QUIP={
+ "고양이":["냥이가 또 식빵 굽는다. 강화되는 동안 졸았대.","고양이 검은 원래 주인 말을 안 들어. 오늘은 들어 줬네.","골골골… 이 소리 들려? 검이 만족한 거야."],
+ "강아지":["멍! 꼬리 흔드는 거 봐. 칭찬받고 싶은 거야.","강아지 검은 간식으로 강화된다는 설이 있어. 증명은 못 했어."],
+ "칫솔":["양치는 하루 세 번, 강화는 하루 삼백 번.","칫솔 검으로 이빨 닦으면 안 돼. 진짜로. 날이 서 있어."],
+ "젓가락":["젓가락질 잘해야 강화도 잘한대. 너 젓가락 어떻게 쥐어?","한 짝만 있으면 안 돼. 강화도 짝이 맞아야 돼. 무슨 말인지는 나도 몰라."],
+ "총":["총이 왜 대장간에서 나오냐고? 나도 몰라. 근데 잘 나가.","물총에서 여기까지 왔다니. 성장 서사 미쳤다."],
+ "우진":["우진이 또 나왔어? 얘는 왜 매번 표정이 그래.","우진은 상성이 매번 바뀌어. 나도 얘 속을 모르겠어.","이건 검인가 사람인가… 철학적인 질문이다."],
+ "부엌":["이 칼로 요리하면 미슐랭 별이 붙는대. 강화 별도.","식칼 계열은 손질이 중요해. 양파 썰 때도 조심."],
+ "음악":["강화 소리가 음악처럼 들리지? 그게 리코더 계열의 저주야.","깡- 깡- 도레미. 오늘 음정 좋다."],
+ "게임":["레벨 업! 띠링! 이 효과음은 내 입으로 낸 거야.","세이브는 안 돼. 이 대장간은 하드코어 모드야."],
+ "용":["용 계열은 성질이 사나워. 화로 온도 좀 올려야겠다.","도마뱀이 용이 되기까지… 감동적이지 않아?"],
+ "우주":["반딧불에서 빅뱅까지. 스케일이 다르다, 스케일이.","우주 검은 무게가 없어. 대신 내 어깨는 무거워."]
+};
+// 같은 말 반복 줄이기: 종류마다 최근 대사를 기억
+const QSEEN={};
+quip=function(kind,v){const a=QUIP[kind]||QUIP.keep;const seen=QSEEN[kind]||(QSEEN[kind]=[]);let pool=a.map((t,i)=>i).filter(i=>seen.indexOf(i)<0);if(!pool.length){seen.length=0;pool=a.map((t,i)=>i)}
+  const i=pool[Math.floor(Math.random()*pool.length)];seen.push(i);if(seen.length>Math.max(1,Math.floor(a.length*.6)))seen.shift();
+  return a[i].replace(/\{(\w+)\}/g,(m,k)=>v&&v[k]!=null?v[k]:"")};
+// 흐름 기억 (연속 성공·유지·파괴, 직전 결과)
+const SM={okRun:0,keepRun:0,boomRun:0,last:"",lastSay:Date.now(),lastAct:Date.now(),tapAt:0,tapHit:false};
+const _quipFor=quipFor;
+quipFor=function(kind,lv,before,name,desc,prevName,prevDesc){
+  const r=Math.random(),prevKind=SM.last;SM.lastAct=Date.now();
+  if(kind==="success"||kind==="hidden"){SM.okRun++;SM.keepRun=0;SM.boomRun=0}else if(kind==="keep"||kind==="saved"){SM.keepRun++;SM.okRun=0}else if(kind==="destroy"){SM.boomRun++;SM.okRun=0;SM.keepRun=0}
+  if(kind==="success"||kind==="keep"||kind==="saved"||kind==="destroy"||kind==="hidden")SM.last=kind;
+  const tapRecent=Date.now()-SM.tapAt<4000;
+  const line=ST&&ST.lineName,lq=LINE_QUIP[line];
+  let q="";
+  if(kind==="success"&&before>0&&lv<20&&lv%5!==0){
+    if(tapRecent&&SM.tapHit&&r<.45)q=quip("tapHit",{});
+    else if(prevKind==="destroy"&&r<.6)q=quip("comeback",{name,lv});
+    else if(SM.okRun>=3&&r<.6)q=quip("hotStreak",{n:SM.okRun,name,lv});
+    else if(lv>=15&&r<.6)q=quip("highSuccess",{name,lv});
+    else if(typeof evOn==="function"&&evOn()&&r<.3)q=quip("eventSuccess",{name,lv});
+    else if(lv<=5&&r<.35)q=quip("lowSuccess",{name,lv});
+    else if(lq&&r<.55)q=lq[Math.floor(Math.random()*lq.length)];}
+  else if(kind==="keep"){
+    if(tapRecent&&!SM.tapHit&&r<.45)q=quip("tapMiss",{});
+    else if(SM.keepRun>=3&&r<.6)q=quip("keepStreak",{n:SM.keepRun,name,lv});
+    else if(lv>=15&&r<.6)q=quip("highKeep",{name,lv});
+    else if(lq&&r<.25)q=lq[Math.floor(Math.random()*lq.length)];}
+  else if(kind==="destroy"){
+    if(before>=15&&r<.7)q=quip("highDestroy",{name:prevName,prev:before});
+    else if(SM.boomRun>=2&&r<.7)q=quip("destroyStreak",{name:prevName,prev:before});}
+  else if(kind==="win"||kind==="lose"){const ya=window.LASTB&&LASTB.mode==="yacha";q=quip(ya?(kind==="win"?"yachaWin":"yachaLose"):(kind==="win"?"battleWin":"battleLose"),{})}
+  else if(kind==="hunt")q=quip("hunt",{});
+  else if(kind==="claim")q=quip("claim",{});
+  else if(kind==="gift")q=quip("gift",{});
+  if(!q)q=_quipFor(kind,lv,before,name,desc,prevName,prevDesc);
+  if(q)SM.lastSay=Date.now();
+  return q};
+// 배틀 모드를 기억해서 야차/일반 대사를 고름
+if(typeof playBattle==="function"){const _pb=playBattle;playBattle=function(b){window.LASTB=b;return _pb.apply(this,arguments)}}
+// 두들기기 결과 기억 (stopTap 이 끝난 뒤 강화 결과가 오므로)
+document.addEventListener("pointerdown",()=>{if(typeof TAP!=="undefined"&&TAP.active){setTimeout(()=>{SM.tapAt=Date.now();SM.tapHit=$("tapGame").classList.contains("hit")},0)}},true);
+document.addEventListener("keydown",e=>{if((e.code==="Space"||e.key===" ")&&typeof TAP!=="undefined"&&TAP.active)setTimeout(()=>{SM.tapAt=Date.now();SM.tapHit=$("tapGame").classList.contains("hit")},0)},true);
+// 대장장이 말풍선을 누르면 말 걸기
+(function(){const b=$("smith");if(!b)return;b.style.cursor="pointer";b.setAttribute("role","button");b.setAttribute("tabindex","0");b.setAttribute("aria-label","대장장이에게 말 걸기");
+  let n=0,t0=0;const poke=()=>{const now=Date.now();if(now-t0<600)return;t0=now;n++;
+    say(n>=6&&Math.random()<.5?"그만 찔러! …알았어, 하나만 알려 줄게. 결투장에선 레어가 +1이야.":quip("poke",{}));SM.lastSay=now;try{if(SOUND)strike(0,.06,.08,1.6)}catch(e){}};
+  b.addEventListener("click",poke);b.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();poke()}})})();
+// 첫 인사 (시간·지갑 사정에 따라)
+(function greet(){if(!ST||!META){setTimeout(greet,600);return}
+  const h=new Date().getHours(),g=ST.gold;let k=h<6?"greetDawn":h<11?"greetMorning":h<18?"greetDay":"greetEvening";
+  if(g<20000&&ST.lv<5&&Math.random()<.7)k="greetBroke";else if(g>=50000000&&Math.random()<.4)k="greetRich";
+  setTimeout(()=>{say(quip(k,{h}));SM.lastSay=Date.now()},900)})();
+// 한동안 아무것도 안 하면 혼잣말 (화면이 대장간일 때만, 자주 하지 않음)
+setInterval(()=>{if(document.visibilityState!=="visible"||!ST||BUSY)return;const now=Date.now();
+  if(now-SM.lastAct<45000||now-SM.lastSay<45000)return;const r=$("smith").getBoundingClientRect();if(r.bottom<0||r.top>innerHeight)return;
+  say(quip("idle",{}));SM.lastSay=now},15000);
+["click","keydown","pointerdown"].forEach(ev=>document.addEventListener(ev,e=>{if(!e.target.closest||!e.target.closest("#smith"))SM.lastAct=Date.now()},{passive:true}));
+
+// ── 골드 숫자가 굴러가며 바뀌고, 늘고 줄어든 만큼 잠깐 띄우기 ──
+let GOLD_SHOWN=null,GOLD_RAF=0;
+const RM=(()=>{try{return matchMedia("(prefers-reduced-motion: reduce)").matches}catch(e){return false}})();
+function goldTo(v){const el=$("gold");if(GOLD_SHOWN==null||RM){GOLD_SHOWN=v;el.textContent=fmt(v);return}
+  const from=GOLD_SHOWN,d=v-from;if(!d){el.textContent=fmt(v);return}GOLD_SHOWN=v;cancelAnimationFrame(GOLD_RAF);
+  const t0=performance.now(),dur=Math.min(900,350+Math.log10(Math.abs(d)+1)*90);
+  const step=t=>{const k=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-k,3);el.textContent=fmt(Math.round(from+d*e));if(k<1)GOLD_RAF=requestAnimationFrame(step)};GOLD_RAF=requestAnimationFrame(step);
+  const chip=el.closest(".chip");if(!chip)return;const f=document.createElement("span");f.className="gdelta "+(d>0?"up":"dn");f.textContent=(d>0?"+":"−")+fmt(Math.abs(d));chip.append(f);setTimeout(()=>f.remove(),1300)}
+// ── 등급 오라 · 연속 성공 표시 ──
+const _render=render;
+render=function(){const before=GOLD_SHOWN;_render.apply(this,arguments);if(!ST)return;
+  if(before!=null){$("gold").textContent=fmt(before);GOLD_SHOWN=before}goldTo(ST.gold);
+  const st=document.querySelector(".stage");if(st){[1,2,3].forEach(g=>st.classList.toggle("aura"+g,ST.grade===g&&ST.lv>0))}
+  let sk=$("streakTag");if(!sk&&st){sk=document.createElement("span");sk.id="streakTag";sk.className="streak";st.append(sk)}
+  if(sk){const n=SM.okRun;sk.hidden=n<2||ST.lv===0;sk.textContent="🔥 "+n+"연속 성공"}};
+// ── 결과별 진동 (휴대폰) ──
+const _fx=fx;
+fx=function(kind,before){const r=_fx.apply(this,arguments);try{if(navigator.vibrate){const lv=ST?ST.lv:0;
+  if(kind==="success"||kind==="hidden")navigator.vibrate(lv>=15||lv%5===0?[30,40,70]:18);else if(kind==="destroy")navigator.vibrate([90,60,140]);else if(kind==="saved")navigator.vibrate([20,30,20])}}catch(e){}return r};
 </script>
 </body>
 </html>
