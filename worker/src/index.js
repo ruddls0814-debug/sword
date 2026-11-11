@@ -100,7 +100,7 @@ function hist_(row, st, prev) {
   if (!DB || !DB.sql) return;
   const c = HCTX || {act:'system'};
   const same = prev.lv === st.lv && Math.round(prev.gold) === Math.round(st.gold) && String(prev.line) === String(st.line);
-  if ((c.act === 'me' || c.act === 'cheer') && same) return;   // 접속만 한 경우는 남기지 않음
+  if (same && ['me','cheer','yachaAsk','yachaCancel','yachaAnswer'].indexOf(c.act) >= 0) return;   // 접속만 한 경우는 남기지 않음
   const act = c.actorId && row.id !== c.actorId ? `${c.act}:by:${c.actorNick}` : c.act;
   DB.sql.exec("INSERT INTO hist (pid, t, act, lv0, lv1, line0, line1, gold0, gold1, state) VALUES (?,?,?,?,?,?,?,?,?,?)",
     row.id, Date.now(), act, +prev.lv || 0, +st.lv || 0, prev.line == null || prev.line === '' ? -1 : +prev.line, st.line == null ? -1 : +st.line,
@@ -399,6 +399,7 @@ function api(action, req) {
       return {ok:true, nickname:t.nickname, seen:tst.seen||{}, best:tst.best||0, lv:t.lv, line:t.line};
     }
     if (action === 'live') { const L = liveRead_(), since = +req.since || 0, cs = +req.chatSince || 0;
+      if (req.token) { const lw = findBy_('token', String(req.token)); if (lw && lw.status === 'ok') markOnline_(lw.id); }
       const out = {ok:true, seq:L.seq, ev:L.ev.filter(e => e.seq > since), watchers:watchers_(null), min:PUBLIC_MIN};
       const acc = roomAccess_(String(req.room||LOBBY), req.roomPw);
       if (typeof acc === 'string') { out.roomError = acc; out.room = LOBBY; }
@@ -438,14 +439,14 @@ function api(action, req) {
       if (['pending','approve','reject','give','roster','setApproval','history','restore'].indexOf(action) >= 0) { HCTX = {act:'admin:'+action, actorId:'', actorNick:'관리자'}; return admin_(action, req, row); }
       const st = migrate_(Object.assign(fresh_(), JSON.parse(row.state||'{}')));
       const out = {msgs:[], fx:null};
-      HCTX = {act:action, actorId:row.id, actorNick:row.nickname};
-    const fn = {me:()=>{}, enhance:enhance_, sell:sell_, buyScroll:buyScroll_, aid:aid_, battle:battle_, cheer:cheer_, huntSet:huntSet_, huntStop:huntStop_, huntClaim:huntClaim_, gift:gift_}[action];
+      HCTX = {act:action, actorId:row.id, actorNick:row.nickname}; markOnline_(row.id);
+    const fn = {me:()=>{}, yachaAsk:yachaAsk_, yachaAnswer:yachaAnswer_, yachaCancel:yachaCancel_, enhance:enhance_, sell:sell_, buyScroll:buyScroll_, aid:aid_, battle:battle_, cheer:cheer_, huntSet:huntSet_, huntStop:huntStop_, huntClaim:huntClaim_, gift:gift_}[action];
       if (fn && action !== 'cheer') settle_(st, out);
       if (!fn) return {ok:false, error:'알 수 없는 요청: '+action};
       const err = fn(st, req, out, row);
       if (err) { if (out.goblins) save_(row, st); return {ok:false, error:err, state:pub_(st, row), goblins:out.goblins||null}; }
       if (action !== 'cheer') { fitHunt_(st, out); save_(row, st); }
-      return {ok:true, state:pub_(st, row), msgs:out.msgs, fx:out.fx, battle:out.battle||null, goblins:out.goblins||null};
+      return {ok:true, state:pub_(st, row), msgs:out.msgs, fx:out.fx, battle:out.battle||null, yacha:out.yacha||null, goblins:out.goblins||null};
     } finally { lock.releaseLock(); }
   } catch (e) { return {ok:false, error:String(e && e.message || e)}; }
 }
@@ -596,8 +597,8 @@ function enhance_(st, req, out, row) {
 // 기록에 남는 행동 이름
 function actLabel_(a) {
   const m = String(a||'').match(/^(.*?)(?::by:(.*))?$/), base = m[1], by = m[2];
-  const L = {enhance:'강화', sell:'판매', aid:'파산 지원금', battle:'배틀', huntSet:'사냥 시작', huntStop:'사냥 멈춤', huntClaim:'사냥 수확', gift:'선물', buyScroll:'방지권 구매', me:'사냥 정산', 'admin:give':'관리자 지급', 'admin:restore':'관리자 되돌림', system:'기타'};
-  if (by) return base === 'battle' ? `배틀 당함 (${by})` : base === 'gift' ? `선물 받음 (${by})` : `${L[base]||base} (${by})`;
+  const L = {enhance:'강화', sell:'판매', aid:'파산 지원금', battle:'배틀', yacha:'야차 배틀', yachaAnswer:'야차 배틀', huntSet:'사냥 시작', huntStop:'사냥 멈춤', huntClaim:'사냥 수확', gift:'선물', buyScroll:'방지권 구매', me:'사냥 정산', 'admin:give':'관리자 지급', 'admin:restore':'관리자 되돌림', system:'기타'};
+  if (by) return base === 'yacha' ? `야차 배틀 (${by}님이 수락)` : base === 'battle' ? `배틀 당함 (${by})` : base === 'gift' ? `선물 받음 (${by})` : `${L[base]||base} (${by})`;
   return L[base] || base;
 }
 // ── 자동 사냥 (던전 10단계) ─────────────────────────────────
@@ -752,22 +753,85 @@ function battle_(st, req, out, row) {
   fst.log = fst.log || [];
   if (win) {
     st.wins++; st.gold += pz;
-    const fName = nameOf(foeLv, fst.line), foeLine0 = fst.line, d = drop_(fst);
-    fst.log.push({text:`${row.nickname}님(+${myLv})에게 졌습니다.${d ? ` 검이 +${fst.lv}로 떨어졌습니다.` : ' 검은 버텨 냈습니다.'}`, kind:'bad', t});
-    say_(st,out,`배틀 승리!${mt} ${foe.nickname}의 +${foeLv} ${fName}을(를) 꺾고 ${fmt(pz)} G를 받았습니다. ${d ? `상대 검이 +${fst.lv}로 떨어졌습니다.` : '상대 검은 버텨 냈습니다.'} (오늘 남은 배틀 ${BATTLE_PER_DAY-dl.battles}회)`,'ok'); out.fx='win';
-    out.battle = {win:true, drop:d, mt:m, me:{nick:row.nickname, line:st.line, lv:myLv}, foe:{nick:foe.nickname, line:foeLine0, lv:foeLv}};
-    feed_(`${row.nickname}님(+${myLv})이 ${foe.nickname}님(+${foeLv})을 이겼습니다.${d ? ` ${foe.nickname}님의 검이 +${fst.lv}로 떨어졌습니다.` : ''}`);
-    if (d) livePush_({type:'drop', to:foe.id, id:row.id, nick:row.nickname, byLv:myLv, from:foeLv, lv:fst.lv, name:nameOf(fst.lv, fst.line), line:fst.line});   // 상대가 접속 중이면 바로 알림
+    const fName = nameOf(foeLv, fst.line);
+    fst.log.push({text:`${row.nickname}님(+${myLv})의 도전에 졌습니다. (일반 배틀이라 잃은 것은 없습니다)`, kind:'bad', t});
+    say_(st,out,`배틀 승리!${mt} ${foe.nickname}의 +${foeLv} ${fName}을(를) 꺾고 ${fmt(pz)} G를 받았습니다. (오늘 남은 배틀 ${BATTLE_PER_DAY-dl.battles}회)`,'ok'); out.fx='win';
+    out.battle = {mode:'normal', win:true, gold:pz, mt:m, me:{nick:row.nickname, line:st.line, lv:myLv}, foe:{nick:foe.nickname, line:fst.line, lv:foeLv}};
+    feed_(`${row.nickname}님(+${myLv})이 ${foe.nickname}님(+${foeLv})을 이겼습니다.`);
   } else {
     st.losses++; st.gold -= f; fst.gold += f; fst.defWins = (fst.defWins||0)+1;
-    const myLine0 = st.line, d = drop_(st);
     fst.log.push({text:`${row.nickname}님의 도전을 막아 내고 참가비 ${fmt(f)} G를 받았습니다.`, kind:'gold', t});
-    say_(st,out,`배틀 패배.${mt} ${foe.nickname}의 +${foeLv} ${nameOf(foeLv, fst.line)}에게 져서 참가비 ${fmt(f)} G를 냈습니다.${d ? ` 검이 +${st.lv}로 떨어졌습니다.` : ' 다행히 검은 버텨 냈습니다.'} (오늘 남은 배틀 ${BATTLE_PER_DAY-dl.battles}회)`,'bad'); out.fx='lose';
-    out.battle = {win:false, drop:d, mt:m, me:{nick:row.nickname, line:myLine0, lv:myLv}, foe:{nick:foe.nickname, line:fst.line, lv:foeLv}};
-    feed_(`${foe.nickname}님(+${foeLv})이 ${row.nickname}님(+${myLv})의 도전을 막아 냈습니다.${d ? ` ${row.nickname}님의 검이 +${st.lv}로 떨어졌습니다.` : ''}`);
+    say_(st,out,`배틀 패배.${mt} ${foe.nickname}의 +${foeLv} ${nameOf(foeLv, fst.line)}에게 져서 참가비 ${fmt(f)} G를 냈습니다. (오늘 남은 배틀 ${BATTLE_PER_DAY-dl.battles}회)`,'bad'); out.fx='lose';
+    out.battle = {mode:'normal', win:false, gold:f, mt:m, me:{nick:row.nickname, line:st.line, lv:myLv}, foe:{nick:foe.nickname, line:fst.line, lv:foeLv}};
+    feed_(`${foe.nickname}님(+${foeLv})이 ${row.nickname}님(+${myLv})의 도전을 막아 냈습니다.`);
   }
   if (fst.log.length > 40) fst.log = fst.log.slice(-40);
   fitHunt_(fst, null); save_(foe, fst);
+}
+// ── 야차 배틀: 서로 동의하고 겨루며, 진 쪽 검은 그 자리에서 자동 판매 ──
+const YACHA_WAIT_MS = 30000, ONLINE_MS = 75000;
+function online_() { const v = CacheService.getScriptCache().get('online'); return v ? JSON.parse(v) : {}; }
+function markOnline_(id) {
+  const m = online_(), now = Date.now();
+  if (now - (m[id] || 0) < 15000) return;
+  m[id] = now; Object.keys(m).forEach(k => { if (now - m[k] > 600000) delete m[k]; });
+  CacheService.getScriptCache().put('online', JSON.stringify(m), 900);
+}
+function isOnline_(id) { return Date.now() - (online_()[id] || 0) < ONLINE_MS; }
+function yachaRead_() { const v = CacheService.getScriptCache().get('yacha'); const m = v ? JSON.parse(v) : {}, now = Date.now(); Object.keys(m).forEach(k => { if (m[k].exp < now) delete m[k]; }); return m; }
+function yachaWrite_(m) { CacheService.getScriptCache().put('yacha', JSON.stringify(m), 120); }
+function yachaAsk_(st, req, out, row) {
+  if (!st.lv) return '야차 배틀은 +1 이상 검이 있어야 신청할 수 있습니다';
+  const foe = findBy_('id', String(req.targetId||''));
+  if (!foe || foe.id === row.id || foe.status !== 'ok') return '상대를 찾을 수 없습니다';
+  if (!(+foe.lv > 0)) return '상대에게 걸 검이 없습니다 (+0)';
+  if (!isOnline_(foe.id)) return `${foe.nickname}님은 지금 접속 중이 아닙니다`;
+  const m = yachaRead_(), ks = Object.keys(m);
+  if (ks.some(k => m[k].from === row.id)) return '이미 보낸 야차 신청이 있습니다. 답을 기다리거나 취소하세요';
+  if (ks.some(k => m[k].to === foe.id || m[k].from === foe.id)) return `${foe.nickname}님은 다른 야차 신청을 처리 중입니다`;
+  if (ks.some(k => m[k].to === row.id)) return '먼저 나에게 온 야차 신청에 답해 주세요';
+  const cid = Utilities.getUuid().slice(0, 8), exp = Date.now() + YACHA_WAIT_MS;
+  m[cid] = {from:row.id, to:foe.id, exp}; yachaWrite_(m);
+  livePush_({type:'yachaAsk', to:foe.id, cid, exp, wait:YACHA_WAIT_MS, from:{id:row.id, nick:row.nickname, lv:st.lv, line:st.line, name:nameOf(st.lv, st.line), sell:sellOf(st.lv, st.line)}});
+  out.yacha = {cid, exp, wait:YACHA_WAIT_MS, to:{id:foe.id, nick:foe.nickname, lv:+foe.lv}};
+}
+function yachaCancel_(st, req, out, row) {
+  const m = yachaRead_(), c = m[String(req.cid||'')];
+  if (!c || c.from !== row.id) return null;
+  delete m[req.cid]; yachaWrite_(m);
+  livePush_({type:'yachaGone', to:c.to, cid:req.cid, why:'cancel', nick:row.nickname});
+}
+function yachaAnswer_(st, req, out, row) {
+  const m = yachaRead_(), cid = String(req.cid||''), c = m[cid];
+  if (!c || c.to !== row.id) return '신청이 취소되었거나 시간이 지났습니다';
+  delete m[cid]; yachaWrite_(m);
+  const ch = findBy_('id', c.from);
+  if (!ch || ch.status !== 'ok') return '신청한 플레이어를 찾을 수 없습니다';
+  if (!req.accept) { livePush_({type:'yachaNo', to:c.from, cid, nick:row.nickname}); out.msgs.push({text:`${ch.nickname}님의 야차 신청을 거절했습니다.`, kind:'', t:''}); return null; }
+  const cst = migrate_(Object.assign(fresh_(), JSON.parse(ch.state||'{}'))); settle_(cst, null);
+  if (!st.lv || !cst.lv) { livePush_({type:'yachaNo', to:c.from, cid, nick:row.nickname, why:'nosword'}); return '둘 중 한 명의 검이 +0이 되어 야차 배틀이 취소되었습니다'; }
+  // 신청한 쪽이 도전자 (상성 계산도 도전자 기준)
+  const aLv = cst.lv, bLv = st.lv, aLine = cst.line, bLine = st.line;
+  const mt = matchup_(aLine, bLine, true);
+  const aWin = Math.random() < winP(aLv + MATCH_BONUS * mt, bLv);
+  const W = aWin ? {row:ch, st:cst} : {row:row, st:st}, L = aWin ? {row:row, st:st} : {row:ch, st:cst};
+  const lLv = L.st.lv, lLine = L.st.line, lName = nameOf(lLv, lLine), price = sellOf(lLv, lLine), wName = nameOf(W.st.lv, W.st.line);
+  L.st.gold += price; L.st.sold = (L.st.sold||0) + 1; L.st.lv = 0; L.st.line = null; L.st.losses = (L.st.losses||0) + 1;
+  W.st.wins = (W.st.wins||0) + 1;
+  const t = Utilities.formatDate(new Date(),'Asia/Seoul','HH:mm');
+  const wMsg = {text:`👹 야차 배틀 승리! ${L.row.nickname}님의 +${lLv} ${lName}이(가) 자동 판매되었습니다.`, kind:'ok', t};
+  const lMsg = {text:`👹 야차 배틀 패배… +${lLv} ${lName}이(가) ${fmt(price)} G에 자동 판매되었습니다.`, kind:'bad', t};
+  [W, L].forEach(x => { x.st.log = x.st.log || []; x.st.log.push(x === W ? wMsg : lMsg); if (x.st.log.length > 40) x.st.log = x.st.log.slice(-40); });
+  out.msgs.push(aWin ? lMsg : wMsg);
+  out.fx = aWin ? 'lose' : 'win';
+  const side = (mine) => mine === 'a' ? {nick:ch.nickname, line:aLine, lv:aLv} : {nick:row.nickname, line:bLine, lv:bLv};
+  out.battle = {mode:'yacha', win:!aWin, price, mt:-mt, me:side('b'), foe:side('a')};
+  // 신청한 쪽 저장 + 실시간 결과 전달
+  HCTX = {act:'yacha', actorId:row.id, actorNick:row.nickname};
+  fitHunt_(cst, null); save_(ch, cst);
+  HCTX = {act:'yacha', actorId:row.id, actorNick:row.nickname};
+  livePush_({type:'yachaDone', to:ch.id, cid, battle:{mode:'yacha', win:aWin, price, mt, me:side('a'), foe:side('b')}});
+  feed_(`👹 야차 배틀! ${W.row.nickname}님(+${W.st.lv})이 ${L.row.nickname}님(+${lLv})을 이겼습니다. ${L.row.nickname}님의 ${lName}은(는) 자동 판매되었습니다.`);
 }
 function board_(req) {
   const rows = allRows_().filter(r => r.status === 'ok'), me = rows.find(r => r.token === String(req.token||''));
@@ -775,8 +839,9 @@ function board_(req) {
   const ranking = list.slice().sort((a,b) => b.lv-a.lv || b.best-a.best || b.gold-a.gold).slice(0, 30);
   const myLv = me ? me.lv : 0;
   const myLine = me ? me.line : null;
-  const foes = list.filter(x => !x.me).map(x => { const m = matchup_(myLine, x.line, false); return Object.assign(x, {type:typeOf(x.line), match:m, winP:Math.round(winP(myLv + MATCH_BONUS * (m||0), x.lv)*100), prize:prize(x.lv), fee:fee(x.lv)}); })
-    .sort((a,b) => Math.abs(a.lv-myLv)-Math.abs(b.lv-myLv)).slice(0, 12);
+  const on = online_(), now = Date.now();
+  const foes = list.filter(x => !x.me).map(x => { const m = matchup_(myLine, x.line, false); return Object.assign(x, {type:typeOf(x.line), match:m, winP:Math.round(winP(myLv + MATCH_BONUS * (m||0), x.lv)*100), prize:prize(x.lv), fee:fee(x.lv), online: now - (on[x.id]||0) < ONLINE_MS, sell:sellOf(x.lv, x.line)}); })
+    .sort((a,b) => Math.abs(a.lv-myLv)-Math.abs(b.lv-myLv)).filter((x, i) => i < 12 || x.online);
   const sh = feedSheet_(), n = sh.getLastRow()-1;
   const feed = n < 1 ? [] : sh.getRange(Math.max(2, sh.getLastRow()-29), 1, Math.min(30, n), 2).getValues().reverse()
     .filter(r => Utilities.formatDate(new Date(r[0]), 'Asia/Seoul', 'yyyy-MM-dd') === today_())
