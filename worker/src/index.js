@@ -177,6 +177,12 @@ const SELL_H = [0,95,270,780,1650,3900,11000,25000,48000,130000,240000,640000,12
 const cost = l => COST[l];
 const baseSell = l => SELL_N[l] || 0;
 const isHidden = line => line!=null && line>=0 && LINES[line].h;
+// 등급: 0 일반 · 1 레어(예전 히든) · 2 유니크 · 3 에픽. 결투장에서 강화 단계 +등급만큼 보정
+const GRADES = [{n:'일반', bonus:0}, {n:'레어', bonus:1}, {n:'유니크', bonus:2}, {n:'에픽', bonus:3}];
+const gradeOf = line => line == null || line < 0 ? 0 : (LINES[line].g != null ? LINES[line].g : (LINES[line].h ? 1 : 0));
+const gradeBonus = line => GRADES[gradeOf(line)].bonus;
+// 추가 예정 무기 (아직 얻을 수 없음, 도감에 자리만 표시)
+const UPCOMING = [{g:2, n:'유니크 무기 Ⅰ'}, {g:2, n:'유니크 무기 Ⅱ'}, {g:2, n:'유니크 무기 Ⅲ'}, {g:3, n:'에픽 무기'}];
 const sellOf = (l,line) => (isHidden(line) ? SELL_H[l] : SELL_N[l]) || 0;
 const nameOf = (l,line) => (l===0||line==null||line<0) ? BASE : LINES[line].names[l-1];
 const scrollPrice = l => Math.max(300, cost(l)*6);
@@ -385,7 +391,7 @@ function say_(st, out, text, kind) {
 function api(action, req) {
   req = req || {}; HCTX = null;
   try {
-    if (action === 'bootstrap') return {ok:true, tapBonus:TAP_BONUS, gift:{min:GIFT_MIN, fee:GIFT_FEE, perDay:GIFT_PER_DAY, dayMax:GIFT_DAY_MAX, ageH:GIFT_AGE_H}, dungeons:DUNGEONS, huntCapH:HUNT_CAP_H, buffs:BUFFS.map(b=>({key:b[0],name:b[1],n:b[2],desc:b[4]})), guardMax:GUARD_MAX, types:TYPE_OF, beats:BEATS, protectMax:PROTECT_MAX, lines:LINES.map(l=>({n:l.n,h:l.h,t:TYPE_OF[l.n]||'',names:l.names,desc:DESC[l.n]||[]})), baseDesc:BASE_DESC, odds:ODDS, base:BASE, max:MAX, url:(function(){try{return ScriptApp.getService().getUrl()}catch(e){return ''}})()};
+    if (action === 'bootstrap') return {ok:true, tapBonus:TAP_BONUS, gift:{min:GIFT_MIN, fee:GIFT_FEE, perDay:GIFT_PER_DAY, dayMax:GIFT_DAY_MAX, ageH:GIFT_AGE_H}, dungeons:DUNGEONS, huntCapH:HUNT_CAP_H, buffs:BUFFS.map(b=>({key:b[0],name:b[1],n:b[2],desc:b[4]})), guardMax:GUARD_MAX, types:TYPE_OF, beats:BEATS, protectMax:PROTECT_MAX, grades:GRADES, upcoming:UPCOMING, achs:ACHS, lines:LINES.map(l=>({n:l.n,h:l.h,g:l.g!=null?l.g:(l.h?1:0),t:TYPE_OF[l.n]||'',names:l.names,desc:DESC[l.n]||[]})), baseDesc:BASE_DESC, odds:ODDS, base:BASE, max:MAX, url:(function(){try{return ScriptApp.getService().getUrl()}catch(e){return ''}})()};
     if (action === 'register') return register_(req);
     if (action === 'login') return login_(req);
     if (action === 'board') return board_(req);
@@ -422,7 +428,7 @@ function api(action, req) {
       if (c.get(rk)) return {ok:false, error:'너무 빨라요. 잠시 뒤에 보내 주세요'};
       c.put(rk, '1', 2);
       const lock = LockService.getScriptLock(); lock.waitLock(10000);
-      try { chatPush_({id:w.id, nick:w.nickname, text}, acc.id); } finally { lock.releaseLock(); }
+      try { chatPush_({id:w.id, nick:w.nickname, mark:markRow_(w), text}, acc.id); } finally { lock.releaseLock(); }
       return {ok:true};
     }
     if (action === 'watch') {
@@ -440,20 +446,20 @@ function api(action, req) {
       const st = migrate_(Object.assign(fresh_(), JSON.parse(row.state||'{}')));
       const out = {msgs:[], fx:null};
       HCTX = {act:action, actorId:row.id, actorNick:row.nickname}; markOnline_(row.id);
-    const fn = {me:()=>{}, yachaAsk:yachaAsk_, yachaAnswer:yachaAnswer_, yachaCancel:yachaCancel_, enhance:enhance_, sell:sell_, buyScroll:buyScroll_, aid:aid_, battle:battle_, cheer:cheer_, huntSet:huntSet_, huntStop:huntStop_, huntClaim:huntClaim_, gift:gift_}[action];
+    const fn = {me:()=>{}, setBadge:setBadge_, yachaAsk:yachaAsk_, yachaAnswer:yachaAnswer_, yachaCancel:yachaCancel_, enhance:enhance_, sell:sell_, buyScroll:buyScroll_, aid:aid_, battle:battle_, cheer:cheer_, huntSet:huntSet_, huntStop:huntStop_, huntClaim:huntClaim_, gift:gift_}[action];
       if (fn && action !== 'cheer') settle_(st, out);
       if (!fn) return {ok:false, error:'알 수 없는 요청: '+action};
       const err = fn(st, req, out, row);
       if (err) { if (out.goblins) save_(row, st); return {ok:false, error:err, state:pub_(st, row), goblins:out.goblins||null}; }
-      if (action !== 'cheer') { fitHunt_(st, out); save_(row, st); }
-      return {ok:true, state:pub_(st, row), msgs:out.msgs, fx:out.fx, battle:out.battle||null, yacha:out.yacha||null, goblins:out.goblins||null};
+      if (action !== 'cheer') { achCheck_(st, out); fitHunt_(st, out); save_(row, st); }
+      return {ok:true, state:pub_(st, row), msgs:out.msgs, fx:out.fx, battle:out.battle||null, yacha:out.yacha||null, achNew:out.achNew||null, goblins:out.goblins||null};
     } finally { lock.releaseLock(); }
   } catch (e) { return {ok:false, error:String(e && e.message || e)}; }
 }
 function pub_(st, row) {
   const dl = daily_(st);
   hunt_(st);
-  return Object.assign({}, st, giftInfo_(st, row), {now:Date.now(), huntGph:st.hunt.d>=0?huntGph(st.hunt.d):0, huntCap:st.hunt.d>=0?huntGph(st.hunt.d)*HUNT_CAP_H:0, protectCost:protectCost(st), protectOk:st.lv < PROTECT_MAX, type:typeOf(st.line), aidLeft:AID_PER_DAY-dl.aid, battlesLeft:BATTLE_PER_DAY-dl.battles, bankrupt:bankrupt_(st), aidGold:AID_GOLD, nickname:row.nickname, id:row.id, role:row.role, name:nameOf(st.lv, st.line), cost:st.lv>=MAX?null:cost(st.lv), sell:sellOf(st.lv, st.line), scrollPrice:scrollPrice(st.lv), hidden:isHidden(st.line), lineName:st.line==null?null:LINES[st.line].n});
+  return Object.assign({}, st, giftInfo_(st, row), {now:Date.now(), huntGph:st.hunt.d>=0?huntGph(st.hunt.d):0, huntCap:st.hunt.d>=0?huntGph(st.hunt.d)*HUNT_CAP_H:0, protectCost:protectCost(st), protectOk:st.lv < PROTECT_MAX, type:typeOf(st.line), aidLeft:AID_PER_DAY-dl.aid, battlesLeft:BATTLE_PER_DAY-dl.battles, bankrupt:bankrupt_(st), aidGold:AID_GOLD, nickname:row.nickname, id:row.id, role:row.role, name:nameOf(st.lv, st.line), cost:st.lv>=MAX?null:cost(st.lv), sell:sellOf(st.lv, st.line), scrollPrice:scrollPrice(st.lv), hidden:isHidden(st.line), grade:gradeOf(st.line), mark:markOf_(st), achStats:achStats_(st), achs:st.achs||[], badge:st.badge||'', lineName:st.line==null?null:LINES[st.line].n});
 }
 
 // ── 계정 ──────────────────────────────────────────────────
@@ -566,8 +572,8 @@ function enhance_(st, req, out, row) {
   if (r < s) {
     if (st.lv === 0) {
       st.line = pickLine_(); const L = LINES[st.line];
-      if (L.h) { try { chatPush_({sys:true, nick:'대장간', text:`✨ 히든 발견! ${row.nickname}님이 ${L.n} 계열을 찾았습니다!`}); } catch (e) {}
-        say_(st,out,`히든 발견! 부지깽이가 「${L.names[0]}」(으)로 변했습니다. ${L.n} 계열은 히든 판매가로 팔립니다.`,'gold'); feed_(`${row.nickname}님이 히든 ${L.n} 계열을 발견했습니다!`); out.fx='hidden'; }
+      if (L.h) { try { chatPush_({sys:true, nick:'대장간', text:`✨ 레어 발견! ${row.nickname}님이 레어 ${L.n} 계열을 찾았습니다!`}); } catch (e) {}
+        say_(st,out,`레어 발견! 부지깽이가 「${L.names[0]}」(으)로 변했습니다. ${L.n} 계열은 레어 판매가로 팔리고, 결투장에서 +1 보정을 받습니다.`,'gold'); feed_(`${row.nickname}님이 레어 ${L.n} 계열을 발견했습니다!`); out.fx='hidden'; }
       else say_(st,out,`부지깽이의 정체가 드러났습니다. ${L.n} 계열 「${L.names[0]}」입니다.`,'ok');
     }
     st.lv++; st.ok++;
@@ -577,7 +583,7 @@ function enhance_(st, req, out, row) {
     if (st.lv >= 10) feed_(`${row.nickname}님이 +${st.lv} ${nameOf(st.lv,st.line)}을(를) 띄웠습니다.`);
     if (st.lv >= HIGH_LV) {   // 고강 성공은 모두에게 알림
       chatPush_({sys:true, nick:'대장간', text:`🎉 고강 성공! ${row.nickname}님이 +${st.lv} ${nameOf(st.lv,st.line)}을(를) 띄웠습니다!`});
-      livePush_({type:'high', id:row.id, nick:row.nickname, lv:st.lv, name:nameOf(st.lv,st.line), line:st.line});
+      livePush_({type:'high', id:row.id, nick:row.nickname, mark:markOf_(st), lv:st.lv, name:nameOf(st.lv,st.line), line:st.line});
     }
     out.fx = out.fx || 'success';
   } else if (r < s+d) {
@@ -591,7 +597,7 @@ function enhance_(st, req, out, row) {
       out.fx = 'destroy';
     }
   } else { say_(st,out,`강화 실패. +${st.lv} 그대로입니다.`); out.fx='keep'; }
-  if (req.public) livePush_({type:'enh', id:row.id, nick:row.nickname, before, beforeName, beforeLine, line:st.line, after:st.lv, name:nameOf(st.lv, st.line), hidden:isHidden(st.line), result:out.fx, odds:ODDS[before]});
+  if (req.public) livePush_({type:'enh', id:row.id, nick:row.nickname, mark:markOf_(st), before, beforeName, beforeLine, line:st.line, after:st.lv, name:nameOf(st.lv, st.line), hidden:isHidden(st.line), result:out.fx, odds:ODDS[before]});
 }
 
 // 기록에 남는 행동 이름
@@ -714,7 +720,7 @@ function sell_(st, req, out, row) {
   if (!st.lv) return '+0 부지깽이는 팔 수 없습니다';
   const p = sellOf(st.lv, st.line), h = isHidden(st.line), nm = nameOf(st.lv, st.line), lv = st.lv;
   st.gold += p; st.sold++;
-  say_(st,out,`+${lv} ${nm}을(를) ${fmt(p)} G에 팔았습니다.${h?' (히든 판매가)':''}`,'gold');
+  say_(st,out,`+${lv} ${nm}을(를) ${fmt(p)} G에 팔았습니다.${h?' (레어 판매가)':''}`,'gold');
   if (lv >= 10) feed_(`${row.nickname}님이 +${lv} ${nm}을(를) ${fmt(p)} G에 팔았습니다.`);
   st.lv = 0; st.line = null; out.fx = 'sell';
 }
@@ -746,20 +752,20 @@ function battle_(st, req, out, row) {
   if (st.gold < f) return `참가비 ${fmt(f)} G가 필요합니다`;
   const myLv = st.lv, foeLv = fst.lv;
   const m = matchup_(st.line, fst.line, true);
-  const win = Math.random() < winP(myLv + MATCH_BONUS * m, foeLv);
+  const win = Math.random() < winP(myLv + MATCH_BONUS * m + gradeBonus(st.line), foeLv + gradeBonus(fst.line));
   const mt = m > 0 ? ' [상성 유리]' : m < 0 ? ' [상성 불리]' : '';
   st.nextFight = Date.now() + 3000; dl.battles++;
   const t = Utilities.formatDate(new Date(),'Asia/Seoul','HH:mm');
   fst.log = fst.log || [];
   if (win) {
-    st.wins++; st.gold += pz;
+    st.wins++; st.gold += pz; winStreak_(st, myLv, foeLv);
     const fName = nameOf(foeLv, fst.line);
     fst.log.push({text:`${row.nickname}님(+${myLv})의 도전에 졌습니다. (일반 배틀이라 잃은 것은 없습니다)`, kind:'bad', t});
     say_(st,out,`배틀 승리!${mt} ${foe.nickname}의 +${foeLv} ${fName}을(를) 꺾고 ${fmt(pz)} G를 받았습니다. (오늘 남은 배틀 ${BATTLE_PER_DAY-dl.battles}회)`,'ok'); out.fx='win';
     out.battle = {mode:'normal', win:true, gold:pz, mt:m, me:{nick:row.nickname, line:st.line, lv:myLv}, foe:{nick:foe.nickname, line:fst.line, lv:foeLv}};
     feed_(`${row.nickname}님(+${myLv})이 ${foe.nickname}님(+${foeLv})을 이겼습니다.`);
   } else {
-    st.losses++; st.gold -= f; fst.gold += f; fst.defWins = (fst.defWins||0)+1;
+    st.losses++; st.gold -= f; fst.gold += f; fst.defWins = (fst.defWins||0)+1; st.streak = 0;
     fst.log.push({text:`${row.nickname}님의 도전을 막아 내고 참가비 ${fmt(f)} G를 받았습니다.`, kind:'gold', t});
     say_(st,out,`배틀 패배.${mt} ${foe.nickname}의 +${foeLv} ${nameOf(foeLv, fst.line)}에게 져서 참가비 ${fmt(f)} G를 냈습니다. (오늘 남은 배틀 ${BATTLE_PER_DAY-dl.battles}회)`,'bad'); out.fx='lose';
     out.battle = {mode:'normal', win:false, gold:f, mt:m, me:{nick:row.nickname, line:st.line, lv:myLv}, foe:{nick:foe.nickname, line:fst.line, lv:foeLv}};
@@ -767,6 +773,54 @@ function battle_(st, req, out, row) {
   }
   if (fst.log.length > 40) fst.log = fst.log.slice(-40);
   fitHunt_(fst, null); save_(foe, fst);
+}
+// ── 업적 (도감 · 결투장) — 달성한 업적의 마크를 닉네임 옆에 달 수 있음 ──
+const RARE_N = LINES.filter(l => l.h).length;
+const ACHS = [
+  {id:'dex1',   cat:'도감',   mark:'📗', n:'첫 발견',         d:'계열 1종 발견',                 k:'found',  goal:1},
+  {id:'dex10',  cat:'도감',   mark:'📘', n:'수집가',          d:'계열 10종 발견',                k:'found',  goal:10},
+  {id:'dex25',  cat:'도감',   mark:'📚', n:'박물관장',        d:'계열 25종 발견',                k:'found',  goal:25},
+  {id:'dexAll', cat:'도감',   mark:'🏛️', n:'도감 마스터',     d:`계열 ${LINES.length}종 모두 발견`, k:'found', goal:LINES.length},
+  {id:'rare1',  cat:'도감',   mark:'💎', n:'레어 헌터',       d:'레어 계열 첫 발견',             k:'rare',   goal:1},
+  {id:'rareAll',cat:'도감',   mark:'👑', n:'레어 컬렉터',     d:`레어 계열 ${RARE_N}종 모두 발견`, k:'rare',  goal:RARE_N},
+  {id:'max1',   cat:'도감',   mark:'🌟', n:'+20 장인',        d:'한 계열을 +20까지 완성',        k:'maxed',  goal:1},
+  {id:'max5',   cat:'도감',   mark:'✨', n:'전설의 대장장이', d:'+20 완성 5종',                  k:'maxed',  goal:5},
+  {id:'pct50',  cat:'도감',   mark:'📜', n:'반쪽 도감',       d:'도감 완성도 50%',               k:'pct',    goal:50},
+  {id:'win1',   cat:'결투장', mark:'⚔️', n:'첫 승리',         d:'배틀 1승',                      k:'wins',   goal:1},
+  {id:'win30',  cat:'결투장', mark:'🗡️', n:'결투가',          d:'배틀 30승',                     k:'wins',   goal:30},
+  {id:'win100', cat:'결투장', mark:'🏆', n:'결투장의 왕',     d:'배틀 100승',                    k:'wins',   goal:100},
+  {id:'def10',  cat:'결투장', mark:'🛡️', n:'철벽',            d:'도전을 10번 막아 냄',           k:'defWins',goal:10},
+  {id:'def50',  cat:'결투장', mark:'🏯', n:'난공불락',        d:'도전을 50번 막아 냄',           k:'defWins',goal:50},
+  {id:'streak5',cat:'결투장', mark:'🔥', n:'연승 행진',       d:'배틀 5연승',                    k:'bestStreak', goal:5},
+  {id:'giant',  cat:'결투장', mark:'🐉', n:'거인 사냥꾼',     d:'나보다 5단계 이상 높은 검을 이김', k:'giant', goal:1},
+  {id:'ya1',    cat:'결투장', mark:'👹', n:'야차',            d:'야차 배틀 첫 승리',             k:'yWins',  goal:1},
+  {id:'ya10',   cat:'결투장', mark:'👺', n:'야차왕',          d:'야차 배틀 10승',                k:'yWins',  goal:10},
+];
+const ACH_BY = {}; ACHS.forEach(a => ACH_BY[a.id] = a);
+function winStreak_(st, myLv, foeLv) { st.streak = (st.streak||0) + 1; st.bestStreak = Math.max(st.bestStreak||0, st.streak); if (foeLv - myLv >= 5) st.giant = 1; }
+function achStats_(st) {
+  const seen = st.seen || {}, ks = Object.keys(seen).filter(k => seen[k] >= 1 && LINES[k]);
+  const pts = ks.reduce((t, k) => t + Math.min(20, seen[k]), 0);
+  return {found:ks.length, rare:ks.filter(k => LINES[k].h).length, maxed:ks.filter(k => seen[k] >= 20).length, pct:Math.floor(pts / (LINES.length * 20) * 100),
+    wins:st.wins||0, defWins:st.defWins||0, bestStreak:st.bestStreak||0, giant:st.giant||0, yWins:st.yWins||0};
+}
+function achCheck_(st, out) {   // 새로 달성한 업적을 기록하고 알림
+  const S = achStats_(st); st.achs = st.achs || [];
+  const got = ACHS.filter(a => S[a.k] >= a.goal && st.achs.indexOf(a.id) < 0);
+  if (!got.length) return;
+  got.forEach(a => st.achs.push(a.id));
+  if (got.length <= 2) got.forEach(a => say_(st, out, `🏅 업적 달성! ${a.mark} 「${a.n}」 — ${a.d}. 업적 탭에서 이 마크를 닉네임 옆에 달 수 있습니다.`, 'gold'));
+  else say_(st, out, `🏅 업적 ${got.length}개 달성! ${got.map(a => a.mark + ' ' + a.n).join(', ')}. 업적 탭에서 마크를 골라 닉네임 옆에 달아 보세요.`, 'gold');
+  if (out) out.achNew = got.map(a => a.id);
+}
+function markOf_(st) { const a = st && st.badge && ACH_BY[st.badge]; return a ? a.mark : ''; }
+function markRow_(r) { try { return markOf_(JSON.parse(r.state || '{}')); } catch (e) { return ''; } }
+function setBadge_(st, req, out) {
+  const id = String(req.id || '');
+  if (!id) { st.badge = ''; return null; }
+  if (!ACH_BY[id]) return '없는 업적입니다';
+  if ((st.achs || []).indexOf(id) < 0) return '아직 달성하지 않은 업적입니다';
+  st.badge = id; out.msgs.push({text:`닉네임 옆에 ${ACH_BY[id].mark} 「${ACH_BY[id].n}」 마크를 달았습니다.`, kind:'', t:''});
 }
 // ── 야차 배틀: 서로 동의하고 겨루며, 진 쪽 검은 그 자리에서 자동 판매 ──
 const YACHA_WAIT_MS = 30000, ONLINE_MS = 75000;
@@ -813,13 +867,14 @@ function yachaAnswer_(st, req, out, row) {
   // 신청한 쪽이 도전자 (상성 계산도 도전자 기준)
   const aLv = cst.lv, bLv = st.lv, aLine = cst.line, bLine = st.line;
   const mt = matchup_(aLine, bLine, true);
-  const aWin = Math.random() < winP(aLv + MATCH_BONUS * mt, bLv);
+  const aWin = Math.random() < winP(aLv + MATCH_BONUS * mt + gradeBonus(aLine), bLv + gradeBonus(bLine));
   const W = aWin ? {row:ch, st:cst} : {row:row, st:st}, L = aWin ? {row:row, st:st} : {row:ch, st:cst};
   const lLv = L.st.lv, lLine = L.st.line, lName = nameOf(lLv, lLine), price = sellOf(lLv, lLine), wName = nameOf(W.st.lv, W.st.line);
   L.st.gold += price; L.st.sold = (L.st.sold||0) + 1; L.st.lv = 0; L.st.line = null; L.st.losses = (L.st.losses||0) + 1;
-  W.st.wins = (W.st.wins||0) + 1;
+  W.st.wins = (W.st.wins||0) + 1; W.st.yWins = (W.st.yWins||0) + 1; winStreak_(W.st, aWin ? aLv : bLv, lLv); L.st.streak = 0;
+  W.st.gold += price;   // 승자 전리품: 진 쪽 검 판매가만큼
   const t = Utilities.formatDate(new Date(),'Asia/Seoul','HH:mm');
-  const wMsg = {text:`👹 야차 배틀 승리! ${L.row.nickname}님의 +${lLv} ${lName}이(가) 자동 판매되었습니다.`, kind:'ok', t};
+  const wMsg = {text:`👹 야차 배틀 승리! ${L.row.nickname}님의 +${lLv} ${lName}이(가) 자동 판매되었고, 전리품으로 ${fmt(price)} G를 받았습니다.`, kind:'ok', t};
   const lMsg = {text:`👹 야차 배틀 패배… +${lLv} ${lName}이(가) ${fmt(price)} G에 자동 판매되었습니다.`, kind:'bad', t};
   [W, L].forEach(x => { x.st.log = x.st.log || []; x.st.log.push(x === W ? wMsg : lMsg); if (x.st.log.length > 40) x.st.log = x.st.log.slice(-40); });
   out.msgs.push(aWin ? lMsg : wMsg);
@@ -828,19 +883,19 @@ function yachaAnswer_(st, req, out, row) {
   out.battle = {mode:'yacha', win:!aWin, price, mt:-mt, me:side('b'), foe:side('a')};
   // 신청한 쪽 저장 + 실시간 결과 전달
   HCTX = {act:'yacha', actorId:row.id, actorNick:row.nickname};
-  fitHunt_(cst, null); save_(ch, cst);
+  achCheck_(cst, null); fitHunt_(cst, null); save_(ch, cst);
   HCTX = {act:'yacha', actorId:row.id, actorNick:row.nickname};
   livePush_({type:'yachaDone', to:ch.id, cid, battle:{mode:'yacha', win:aWin, price, mt, me:side('a'), foe:side('b')}});
   feed_(`👹 야차 배틀! ${W.row.nickname}님(+${W.st.lv})이 ${L.row.nickname}님(+${lLv})을 이겼습니다. ${L.row.nickname}님의 ${lName}은(는) 자동 판매되었습니다.`);
 }
 function board_(req) {
   const rows = allRows_().filter(r => r.status === 'ok'), me = rows.find(r => r.token === String(req.token||''));
-  const list = rows.map(r => ({id:r.id, nickname:r.nickname, lv:r.lv, line:r.line, best:r.best, name:nameOf(r.lv, r.line), hidden:isHidden(r.line), gold:r.gold, me: !!me && r.id === me.id}));
+  const list = rows.map(r => ({id:r.id, nickname:r.nickname, lv:r.lv, line:r.line, best:r.best, name:nameOf(r.lv, r.line), hidden:isHidden(r.line), gold:r.gold, me: !!me && r.id === me.id, mark:markRow_(r), grade:gradeOf(r.line)}));
   const ranking = list.slice().sort((a,b) => b.lv-a.lv || b.best-a.best || b.gold-a.gold).slice(0, 30);
   const myLv = me ? me.lv : 0;
   const myLine = me ? me.line : null;
   const on = online_(), now = Date.now();
-  const foes = list.filter(x => !x.me).map(x => { const m = matchup_(myLine, x.line, false); return Object.assign(x, {type:typeOf(x.line), match:m, winP:Math.round(winP(myLv + MATCH_BONUS * (m||0), x.lv)*100), prize:prize(x.lv), fee:fee(x.lv), online: now - (on[x.id]||0) < ONLINE_MS, sell:sellOf(x.lv, x.line)}); })
+  const foes = list.filter(x => !x.me).map(x => { const m = matchup_(myLine, x.line, false); return Object.assign(x, {type:typeOf(x.line), match:m, winP:Math.round(winP(myLv + MATCH_BONUS * (m||0) + gradeBonus(myLine), x.lv + gradeBonus(x.line))*100), grade:gradeOf(x.line), prize:prize(x.lv), fee:fee(x.lv), online: now - (on[x.id]||0) < ONLINE_MS, sell:sellOf(x.lv, x.line)}); })
     .sort((a,b) => Math.abs(a.lv-myLv)-Math.abs(b.lv-myLv)).filter((x, i) => i < 12 || x.online);
   const sh = feedSheet_(), n = sh.getLastRow()-1;
   const feed = n < 1 ? [] : sh.getRange(Math.max(2, sh.getLastRow()-29), 1, Math.min(30, n), 2).getValues().reverse()
