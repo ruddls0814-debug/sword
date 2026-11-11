@@ -62,6 +62,15 @@ h1 small{display:block;font-family:var(--f-body);font-size:12px;color:var(--dim)
 .lvl{font-family:var(--f-display);font-size:clamp(54px,14vw,72px);line-height:1;text-align:center;font-variant-numeric:tabular-nums}
 .name{text-align:center;font-size:18px;font-weight:700;margin-top:-8px;text-wrap:balance}
 .tier{text-align:center;font-size:12px;letter-spacing:.14em;color:var(--dim)}
+.evbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;margin:0 0 12px;padding:10px 14px;border-radius:14px;
+  background:linear-gradient(100deg,rgba(255,122,47,.22),rgba(242,193,78,.18),rgba(255,122,47,.22));background-size:200% 100%;border:1px solid rgba(242,193,78,.55);animation:evflow 6s linear infinite}
+.evbar .ev1{font-weight:800;font-size:15px;color:var(--bone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.evbar .ev2{grid-column:1;font-size:13px;color:var(--warn)}
+.evbar .ev3{grid-column:2;grid-row:1/3;font-variant-numeric:tabular-nums;font-size:17px;color:var(--bone);text-align:right;white-space:nowrap}
+.evbar.soon{background:var(--coal);border-style:dashed;animation:none}.evbar.soon .ev3{font-size:13px;color:var(--dim)}
+@keyframes evflow{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.evbar{animation:none}}
+.odds.ev b{position:relative}.odds .evup{display:block;font-size:10.5px;font-weight:700;color:var(--warn);letter-spacing:0}
 .odds{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--ash);border-radius:12px;overflow:hidden;font-variant-numeric:tabular-nums}
 .odds div{background:var(--coal);padding:10px 6px;text-align:center}
 .odds b{display:block;font-size:18px}
@@ -465,6 +474,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
     <div class="who" id="who"></div>
     <button class="appdl" type="button" data-install hidden>📲 앱 설치</button>
   </header>
+  <div class="evbar" id="evBar" hidden role="status"><span class="ev1" id="evTitle"></span><span class="ev2" id="evInfo"></span><b class="ev3" id="evTime"></b></div>
 
   <section class="anvil" aria-label="모루">
     <div class="stage">
@@ -619,6 +629,19 @@ const TIERS=[{n:"녹슨 등급",c:"--t0",to:4},{n:"강철 등급",c:"--t1",to:9}
 const tierOf=l=>TIERS.find(t=>l<=t.to);
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const fmt=n=>Number(n).toLocaleString("ko-KR");
+let EVENT=null,EV_TIMER=null;
+function evOn(){return !!(EVENT&&EVENT.start<=Date.now()&&EVENT.end>Date.now())}
+function oddsNow(lv){let [s,d]=META.odds[lv];if(evOn()){d=Math.round(d*(1-(EVENT.cut||0)/100)*10)/10;s=Math.min(100-d,s+(EVENT.bonus||0))}return[s,d]}
+function evText(e){return [e.bonus?`성공 +${e.bonus}%p`:"",e.cut===100?"파괴 없음":e.cut?`파괴 ${e.cut}% 줄임`:""].filter(Boolean).join(" · ")}
+function hms(ms){const t=Math.max(0,Math.floor(ms/1000)),h=Math.floor(t/3600),m=Math.floor(t%3600/60),x=t%60,z=n=>String(n).padStart(2,"0");return (h?h+":":"")+z(m)+":"+z(x)}
+function setEvent(e){const was=evOn(),wasKey=EVENT?EVENT.start+":"+EVENT.end:"";EVENT=e&&e.end>Date.now()?e:null;paintEvent();if(evOn()!==was||(EVENT?EVENT.start+":"+EVENT.end:"")!==wasKey){if(ST&&META)render()}}
+function paintEvent(){const b=$("evBar");if(!b)return;clearInterval(EV_TIMER);
+  if(!EVENT||EVENT.end<=Date.now()){b.hidden=true;if(EVENT){EVENT=null;if(ST&&META)render()}return}
+  b.hidden=false;$("evTitle").textContent="🎉 "+EVENT.title;$("evInfo").textContent="강화 "+evText(EVENT);
+  const tick=()=>{const now=Date.now();if(now>=EVENT.end){paintEvent();return}
+    if(now<EVENT.start){b.classList.add("soon");const d=new Date(EVENT.start);$("evTime").textContent=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")} 시작\n(${hms(EVENT.start-now)} 뒤)`;$("evTime").style.whiteSpace="pre";if(EVENT.start-now<1200){setTimeout(()=>{if(ST&&META)render()},1300)}}
+    else{if(b.classList.contains("soon")){b.classList.remove("soon");if(ST&&META)render()}$("evTime").style.whiteSpace="nowrap";$("evTime").textContent="남은 "+hms(EVENT.end-now)}};
+  tick();EV_TIMER=setInterval(tick,1000)}
 const nk=(nick,mark)=>(mark?mark+" ":"")+nick;
 const $=id=>document.getElementById(id);
 let META=null, ST=null, BOARD=null, TOKEN=null, BUSY=false;
@@ -649,7 +672,7 @@ const t=tierOf(ST.lv),c=ST.hidden?css("--t4"):css(t.c),glow=Math.min(1,ST.lv/20)
   $("s0").setAttribute("stop-color",ST.lv<3?"#5a3a24":"#2a2a2a");$("s1").setAttribute("stop-color",c);$("s2").setAttribute("stop-color",ST.lv<3?"#4a2c1a":"#3a3a3a");
   $("guardTrim").setAttribute("stroke",c);$("gem").setAttribute("fill",c);
   $("sword").style.filter=(ST.lv>=5||ST.hidden)?`drop-shadow(0 0 ${6+glow*22}px ${c})`:"none"}
-function render(){if(!ST||!META)return;if(!$("p-ach").hidden)renderAch();renderMyPublic();renderBuffs();if(!$("p-hunt").hidden)renderHunt();
+function render(){if(!ST||!META)return;if(ST!==render.st){render.st=ST;if(ST.event!==undefined&&JSON.stringify(ST.event)!==JSON.stringify(EVENT)){EVENT=ST.event&&ST.event.end>Date.now()?ST.event:null;paintEvent()}}if(!$("p-ach").hidden)renderAch();renderMyPublic();renderBuffs();if(!$("p-hunt").hidden)renderHunt();
   $("gold").textContent=fmt(ST.gold);$("scrolls").textContent=ST.scrolls;$("best").textContent="+"+ST.best;
   $("who").innerHTML="";$("who").append(document.createTextNode(nk(ST.nickname,ST.mark)+"님의 대장간"));
   $("lvl").textContent="+"+ST.lv;$("name").textContent=ST.name;$("desc").textContent=descOf(ST.lv,ST.line);
@@ -657,7 +680,7 @@ function render(){if(!ST||!META)return;if(!$("p-ach").hidden)renderAch();renderM
   $("tier").textContent=ST.line==null?"정체불명 · 첫 강화에 종류가 정해집니다":`${t.n} · ${ST.lineName} 계열 · ${ST.type} 속성${ST.hidden?" · 레어 (판매가↑ · 결투 +1)":""}`;
   $("tier").style.color=ST.hidden?"var(--warn)":"";$("lvl").style.color=css(t.c);
   if(ST.lv>=META.max){["pS","pK","pD"].forEach(i=>$(i).textContent="-");$("bS").style.width="100%";$("bK").style.width="0";$("bD").style.width="0";$("upCost").textContent="최고 단계";$("upBtn").disabled=true}
-  else{const[s,d]=META.odds[ST.lv],k=100-s-d;$("pS").textContent=s+"%";$("pK").textContent=k+"%";$("pD").textContent=d+"%";$("bS").style.width=s+"%";$("bK").style.width=k+"%";$("bD").style.width=d+"%";$("upCost").textContent=ST.cost?fmt(ST.cost)+" G":"무료";$("upBtn").disabled=false}
+  else{const[s,d]=oddsNow(ST.lv),k=Math.round((100-s-d)*10)/10,o=META.odds[ST.lv],on=evOn();document.querySelector(".odds").classList.toggle("ev",on);$("pS").textContent=s+"%";$("pK").textContent=k+"%";$("pD").textContent=d+"%";if(on){if(s!==o[0])$("pS").insertAdjacentHTML("beforeend",`<span class="evup">이벤트 +${Math.round((s-o[0])*10)/10}</span>`);if(d!==o[1])$("pD").insertAdjacentHTML("beforeend",`<span class="evup">이벤트 −${Math.round((o[1]-d)*10)/10}</span>`)}$("bS").style.width=s+"%";$("bK").style.width=k+"%";$("bD").style.width=d+"%";$("upCost").textContent=ST.cost?fmt(ST.cost)+" G":"무료";$("upBtn").disabled=false}
   $("sellPrice").textContent=ST.lv?fmt(ST.sell)+" G"+(ST.hidden?" 레어":""):"팔 수 없음";$("sellBtn").disabled=!ST.lv;
   $("scrollPrice").textContent=fmt(ST.scrollPrice)+" G";
   $("aidBtn").disabled=!(ST.bankrupt&&ST.aidLeft>0);$("aidLeft").textContent=`+10만 G · 오늘 ${ST.aidLeft}회`;
@@ -1105,7 +1128,7 @@ async function loadAdmin(){const box=$("adminBox");box.innerHTML='<p class="empt
     $("giveBtn").onclick=async()=>{const id=$("giveTo").value,amt=Number(String($("giveAmt").value).replace(/[,\s]/g,""));if(!id||!amt){toast("받는 사람과 금액을 넣어 주세요");return}
       const gb=$("giveBtn");if(gb.dataset.arm!=="1"){gb.dataset.arm="1";gb.textContent="확인";setTimeout(()=>{gb.dataset.arm="";gb.textContent="보내기"},3000);toast(`${$("giveTo").selectedOptions[0].textContent.split(" · ")[0]}님에게 ${fmt(amt)} G — 한 번 더 누르면 보냅니다`);return}
       gb.dataset.arm="";gb.textContent="보내기";const q=await call("give",{id,amount:amt,memo:$("giveMemo").value});toast(q.ok?`${q.nickname}님 잔액 ${fmt(q.gold)} G`:q.error);if(q.ok){$("giveAmt").value="";$("giveMemo").value="";loadMe();loadAdmin()}};
-    buildHistory(box);buildPitr(box);
+    buildEvent(box);buildHistory(box);buildPitr(box);
     const h=document.createElement("p");h.className="note";h.textContent=`승인 대기 ${r.list.length}명`;box.append(h);
     if(!r.list.length){const e=document.createElement("p");e.className="empty";e.textContent="기다리는 신청이 없습니다.";box.append(e)}
     r.list.forEach(x=>{const d=document.createElement("div");d.className="pend";d.innerHTML='<div class="meta"><b></b><span></span></div><div class="b2"><button class="no">거절</button><button class="ok">승인</button></div>';
@@ -1176,6 +1199,31 @@ async function yachaEvent(e){
   if(e.type==="yachaNo"){if(YA.out&&YA.out.cid===e.cid)yachaOutEnd(e.why==="nosword"?"검이 +0이 되어 야차 배틀이 취소되었습니다":`${e.nick}님이 야차 배틀을 거절했습니다`,false);return}
   if(e.type==="yachaDone"){if(YA.out&&YA.out.cid===e.cid)yachaOutEnd("",false);try{await playBattle(e.battle)}catch(x){}const q=await call("me").catch(()=>null);if(q&&q.ok){const before=ST.lv;ST=q.state;fx(e.battle.win?"win":"lose",before);render();refreshBoard()}}}
 
+// ── 강화 확률 이벤트 열기 ──
+function buildEvent(box){const w=document.createElement("div");w.className="give";
+  w.innerHTML=`<b>🎉 강화 확률 이벤트</b><div id="evNow" class="hint"></div>
+  <input id="evName" maxlength="24" placeholder="이벤트 이름 (예: 주말 강화 축제)" aria-label="이벤트 이름">
+  <div class="row3" style="grid-template-columns:1fr 1fr"><label class="hint">성공 확률<select id="evBonus" style="width:100%;margin-top:4px">${[0,3,5,10,15,20,30].map(v=>`<option value="${v}"${v===10?" selected":""}>${v?"+"+v+"%p":"그대로"}</option>`).join("")}</select></label>
+  <label class="hint">파괴 확률<select id="evCut" style="width:100%;margin-top:4px"><option value="0">그대로</option><option value="50">절반으로</option><option value="100">파괴 없음</option></select></label></div>
+  <div class="row3" style="grid-template-columns:1fr 1fr"><label class="hint">시작<select id="evStartK" style="width:100%;margin-top:4px"><option value="now">지금 바로</option><option value="at">시각 지정</option></select></label>
+  <label class="hint">기간<select id="evDur" style="width:100%;margin-top:4px"><option value="30">30분</option><option value="60" selected>1시간</option><option value="120">2시간</option><option value="180">3시간</option><option value="360">6시간</option><option value="720">12시간</option><option value="1440">24시간</option><option value="midnight">오늘 자정까지</option></select></label></div>
+  <input type="datetime-local" id="evStart" hidden aria-label="시작 시각">
+  <p class="hint" id="evPrev"></p>
+  <button class="btn hot" type="button" id="evGo" style="font-size:15px;padding:10px">이벤트 열기</button>`;box.append(w);
+  const now0=new Date(Date.now()+3600000);now0.setMinutes(0,0,0);$("evStart").value=kstInput(now0.getTime());
+  const calc=()=>{const sk=$("evStartK").value,start=sk==="now"?Date.now():new Date($("evStart").value).getTime();const dv=$("evDur").value;let end;
+    if(dv==="midnight"){const m=new Date(start);m.setHours(24,0,0,0);end=m.getTime()}else end=start+(+dv)*60000;return{start,end,sk}};
+  const prev=()=>{$("evStart").hidden=$("evStartK").value!=="at";const{start,end}=calc(),f=t=>{const d=new Date(t);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`};
+    const e={bonus:+$("evBonus").value,cut:+$("evCut").value};$("evPrev").textContent=(e.bonus||e.cut)?`${f(start)} ~ ${f(end)} · 강화 ${evText(e)} (예: +10 강화 ${META.odds[10][0]}% → ${Math.min(100-Math.round(META.odds[10][1]*(1-e.cut/100)*10)/10,META.odds[10][0]+e.bonus)}%)`:"성공 확률이나 파괴 확률 중 하나는 바꿔야 합니다";
+    $("evGo").disabled=!(e.bonus||e.cut)};
+  ["evBonus","evCut","evStartK","evDur","evStart"].forEach(id=>$(id).addEventListener("input",prev));prev();
+  const now=()=>{const n=$("evNow");n.innerHTML="";if(!EVENT){n.textContent="지금 열린 이벤트가 없습니다. 이벤트를 열면 모든 플레이어 화면 위에 알림 띠가 뜨고 채팅·소식에도 알립니다.";return}
+    n.append(`${EVENT.start<=Date.now()?"진행 중":"예정"}: 「${EVENT.title}」 강화 ${evText(EVENT)} · ${new Date(EVENT.end).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}까지 `);
+    const x=document.createElement("button");x.type="button";x.className="link";x.textContent="지금 끝내기";x.onclick=async()=>{if(x.dataset.arm!=="1"){x.dataset.arm="1";x.textContent="한 번 더 누르면 끝냅니다";return}const r=await call("eventEnd");toast(r.ok?"이벤트를 끝냈습니다":r.error);if(r.ok){setEvent(null);now()}};n.append(x)};now();
+  $("evGo").onclick=async()=>{const g=$("evGo"),{start,end,sk}=calc();if(g.dataset.arm!=="1"){g.dataset.arm="1";g.textContent=EVENT?"기존 이벤트를 바꿔서 열기 (한 번 더)":"모두에게 알리고 열기 (한 번 더)";setTimeout(()=>{g.dataset.arm="";g.textContent="이벤트 열기"},4000);return}
+    g.disabled=true;const r=await call("eventSet",{title:$("evName").value,bonus:+$("evBonus").value,cut:+$("evCut").value,start:sk==="now"?0:start,end});g.disabled=false;g.dataset.arm="";g.textContent="이벤트 열기";
+    toast(r.ok?"이벤트를 열었습니다":r.error);if(r.ok){setEvent(r.event);now()}}}
+
 // ── 개인 기록 조회·되돌리기 (최근 7일) ──
 function buildHistory(box){const w=document.createElement("div");w.className="give";
   w.innerHTML='<b>기록 조회 · 되돌리기</b><p class="hint">강화·판매·배틀·선물·사냥 등 골드나 검이 바뀔 때마다 그때 상태를 남깁니다 (7일 보관). 「이 시점으로」를 누르면 그 줄의 <b>결과 상태</b>로 되돌립니다.</p><select id="histWho" aria-label="플레이어"><option value="">플레이어 선택</option></select><div class="hlist" id="histList"></div>';box.append(w);
@@ -1220,7 +1268,7 @@ let LSEQ_SELF=false,inChannel=false,watchTimer=null,PUBLIC_MIN=12;
 function renderMyPublic(){const box=$("myPublic");if(!box||!ST||!META)return;box.innerHTML="";const d=document.createElement("div");d.className="pubbox";
   if(ST.lv<PUBLIC_MIN){d.innerHTML=`<p>공개 강화는 <b style="color:var(--bone)">+${PUBLIC_MIN} 이상</b> 검만 할 수 있습니다. 지금 내 검은 +${ST.lv}입니다. 대장간에서 키워서 오세요.</p>`;box.append(d);return}
   if(ST.lv>=META.max){d.innerHTML="<p>이미 최고 단계입니다.</p>";box.append(d);return}
-  const [s,dd]=META.odds[ST.lv];
+  const [s,dd]=oddsNow(ST.lv);
   d.innerHTML=`<p>내 검 +${ST.lv} <span></span> · 지켜보는 사람 앞에서 강화합니다.</p><button class="btn hot" type="button">공개 강화<small>${Number(ST.cost).toLocaleString("ko-KR")} G</small></button><p>파괴 방지는 대장간의 체크를 따릅니다${ST.protectOk?` (+${Number(ST.protectCost).toLocaleString("ko-KR")} G)`:" (+15부터 사용 불가)"}.</p>`;
   d.querySelector("span").textContent=ST.name;
   const b=d.querySelector("button");b.disabled=BUSY;b.onclick=()=>act("enhance",{useScroll:$("useScroll").checked,public:true});box.append(d)}
@@ -1244,6 +1292,7 @@ let LIVE_AGAIN=false;
 function pollLive(){if(LIVE_P){LIVE_AGAIN=true;return LIVE_P}LIVE_P=pollLive0().finally(()=>{LIVE_P=null;if(LIVE_AGAIN){LIVE_AGAIN=false;pollLive()}});return LIVE_P}
 async function pollLive0(){try{const r=await call("live",{since:Math.max(LSEQ,0),chatSince:Math.max(CSEQ,0),room:ROOM.id,roomPw:ROOMPW});if(r&&r.roomError&&ROOM.id!=="lobby"){toast(r.roomError+" · 전체 방으로 이동합니다");try{localStorage.removeItem("roomPw_"+ROOM.id)}catch(e){}setRoom({id:"lobby",name:"전체"});return}if(!r||!r.ok){LIVE_FAIL=Math.min(3,LIVE_FAIL+1);return}LIVE_FAIL=0;handleChat(r);
   const first=LSEQ<0;LSEQ=r.seq;if(r.min)PUBLIC_MIN=r.min;if(inChannel&&r.watchers)showWatchers(r.watchers);
+  if(r.event!==undefined)setEvent(r.event);
   r.ev.forEach(e=>{addLiveLog(e);if(!first)showLive(e)});
   if(first){const last=r.ev.filter(e=>e.type==="enh").pop();if(last)paintStage(last,true)}}catch(e){LIVE_FAIL=Math.min(3,LIVE_FAIL+1)}}
 let CSEQ=-1,UNREAD=0;
@@ -1302,6 +1351,7 @@ function paintStage(e,instant){lastLive=e;const st=$("liveStage");const [rt,rc]=
 function showLive(e){
   if(e.type==="high"){showHigh(e);return}
   if(e.type==="drop"){if(ST&&e.to===ST.id)showDropAlert(e);return}
+  if(e.type==="event"){setEvent(e.event);if(e.event)toast(`🎉 ${e.event.title}! 강화 ${evText(e.event)}`);return}
   if(e.type&&e.type.startsWith("yacha")){if(ST&&e.to===ST.id)yachaEvent(e);return}
   if(e.type==="restored"){if(ST&&e.to===ST.id){toast(`관리자가 내 기록을 ${e.when} 시점으로 되돌렸습니다`);loadMe()}return}
   if(e.type==="gift"){if(ST&&e.to===ST.id){toast(`🎁 ${e.nick}님이 ${fmt(e.amount)} G를 보냈습니다!${e.note?" \""+e.note+"\"":""}`);try{if(SOUND)sfx("coin",6)}catch(x){}call("me").then(q=>{if(q&&q.ok){ST=q.state;render()}}).catch(()=>{})}return}
@@ -1641,7 +1691,7 @@ async function openHunt(){if(META&&!META.dungeons){try{const m=await call("boots
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794383180;
+const BUILD=1794395460;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
