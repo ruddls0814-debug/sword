@@ -1136,7 +1136,7 @@ function showHigh(e){const hb=$("highbar");$("highTitle").textContent=`🎉 고�
   const a=$("highArt");if(e.line!=null)setArt(a,e.line,e.lv);hb.hidden=false;clearTimeout(showHigh.h);showHigh.h=setTimeout(()=>hb.hidden=true,6000);
   if(!(ST&&e.id===ST.id)){fxSuccess(e.lv>=20?5:e.lv>=15?4:3,css("--t4"),true);sfx("success",e.lv>=20?5:4)}}
 $("highbar").onclick=()=>{$("highbar").hidden=true;showTab("chat")};
-function addLiveLog(e){if(e.type==="high")return;const box=$("liveLog"),d=document.createElement("div");d.className="msg"+(e.type==="enh"?(e.result==="destroy"?" bad":e.result==="success"||e.result==="hidden"?" ok":""):"");
+function addLiveLog(e){if(e.type!=="enh"&&e.type!=="cheer")return;const box=$("liveLog"),d=document.createElement("div");d.className="msg"+(e.type==="enh"?(e.result==="destroy"?" bad":e.result==="success"||e.result==="hidden"?" ok":""):"");
   const t=document.createElement("span");t.className="t";t.textContent=new Date(e.ts).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
   const txt=e.type==="enh"?`${e.nick} · +${e.before} → +${e.after} ${(RES[e.result]||["",""])[0]} ${e.name}`:`${e.nick} ${e.emoji}`;
   d.append(t,document.createTextNode(txt));box.prepend(d);while(box.children.length>40)box.lastChild.remove()}
@@ -1150,6 +1150,7 @@ function paintStage(e,instant){lastLive=e;const st=$("liveStage");const [rt,rc]=
   $("liveQuote").textContent="";setTimeout(()=>{try{const lq=quipFor(e.result,e.after,e.before,e.name,descOf(e.after,e.line),e.beforeName,descOf(e.before,e.beforeLine));$("liveQuote").textContent=lq?"대장장이: "+lq:""}catch(x){}if(inChannel&&!(ST&&e.id===ST.id)){const tn=e.after>=20?5:e.after>=15?4:e.after>=10?3:e.after>=5?2:1;if(e.result==="success"||e.result==="hidden")sfx("success",tn);else if(e.result==="destroy")sfx("destroy",tn);else if(e.result==="saved")sfx("shield");else sfx("keep",tn)}big.textContent="+"+e.after;nm.textContent=e.name;rs.textContent=rt;rs.style.color=rc;big.classList.remove("pop","shake");void big.offsetWidth;big.classList.add(e.result==="success"||e.result==="hidden"?"pop":"shake")},1200)}
 function showLive(e){
   if(e.type==="high"){showHigh(e);return}
+  if(e.type==="drop"){if(ST&&e.to===ST.id)showDropAlert(e);return}
   if(e.type==="gift"){if(ST&&e.to===ST.id){toast(`🎁 ${e.nick}님이 ${fmt(e.amount)} G를 보냈습니다!${e.note?" \""+e.note+"\"":""}`);try{if(SOUND)sfx("coin",6)}catch(x){}call("me").then(q=>{if(q&&q.ok){ST=q.state;render()}}).catch(()=>{})}return}
   if(e.type==="cheer"){floatEmoji(e.emoji);if(ST&&e.to===ST.id&&e.id!==ST.id)toast(`${e.nick}님이 응원합니다 ${e.emoji}`);return}
   paintStage(e,false);$("liveDot").hidden=false;setTimeout(()=>$("liveDot").hidden=true,8000);
@@ -1279,6 +1280,20 @@ $("upBtn").addEventListener("pointerdown",e=>{if(TAP.active){e.preventDefault();
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState!=="visible")cancelTap()});
 addEventListener("resize",()=>{if(TAP.active)placeTap()});
 
+// 배틀에서 내 검이 떨어졌을 때 (상대가 공격, 내가 접속 중)
+function showDropAlert(e){document.querySelectorAll('.gate[aria-label="배틀 알림"]').forEach(g=>g.remove());
+  const box=document.createElement("div");box.className="gate";box.setAttribute("role","alertdialog");box.setAttribute("aria-label","배틀 알림");
+  const c=document.createElement("div");c.className="giftbox";c.style.borderColor="var(--bad)";c.style.textAlign="center";
+  const h=document.createElement("h2");h.textContent="⚔️ 공격받았습니다!";
+  const p=document.createElement("p");p.style.cssText="margin:0;line-height:1.6";p.textContent=`${e.nick}님(+${e.byLv})이 배틀에서 이겨서 내 검이 +${e.from} → +${e.lv}로 떨어졌습니다.`;
+  const p2=document.createElement("p");p2.style.cssText="margin:0;color:var(--dim);font-size:13px";p2.textContent=e.lv>0?`지금 검: +${e.lv} ${e.name}`:"검이 부지깽이로 돌아갔습니다";
+  const row=document.createElement("div");row.className="grow";const okb=document.createElement("button");okb.type="button";okb.className="btn";okb.textContent="확인";
+  const rev=document.createElement("button");rev.type="button";rev.className="btn hot";rev.textContent="복수하러 가기";row.append(okb,rev);
+  c.append(h,p,p2,row);box.append(c);document.body.append(box);
+  const close=()=>box.remove();okb.onclick=close;rev.onclick=()=>{close();showTab("arena");refreshBoard()};box.addEventListener("click",ev=>{if(ev.target===box)close()});
+  try{if(SOUND)sfx("destroy",1)}catch(x){}if(navigator.vibrate)try{navigator.vibrate([60,40,60])}catch(x){}
+  toast(`⚔️ ${e.nick}님에게 져서 검이 +${e.lv}로 떨어졌습니다`);
+  if(!BUSY)call("me").then(q=>{if(q&&q.ok&&!BUSY){ST=q.state;render()}}).catch(()=>{})}
 async function openHunt(){if(META&&!META.dungeons){try{const m=await call("bootstrap");if(m&&m.dungeons)META=m}catch(e){}}renderHunt();try{const r=await call("me");if(r&&r.ok){ST=r.state;render();renderHunt();if(r.goblins&&r.goblins.length)showGoblin(r.goblins)}}catch(e){}}
 (async function init(){try{META=await call("bootstrap");if(!TOKEN)showGate();else await loadMe()}catch(e){$("name").textContent="서버에 연결하지 못했습니다";}
   setInterval(()=>{if(document.visibilityState==="visible"&&ST)refreshBoard()},20000)})();
@@ -1316,7 +1331,7 @@ async function openHunt(){if(META&&!META.dungeons){try{const m=await call("boots
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794367221;
+const BUILD=1794372436;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
