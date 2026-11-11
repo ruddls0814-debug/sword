@@ -356,7 +356,8 @@ function bankrupt_(st) { return st.gold + sellOf(st.lv, st.line) <= BANKRUPT_GOL
 function migrate_(st) { if ((st.v||1) < STATE_VER) { st.gold = Math.max(st.gold, START_GOLD); st.v = STATE_VER; } return st; }
 function say_(st, out, text, kind) {
   const t = Utilities.formatDate(new Date(), 'Asia/Seoul', 'HH:mm');
-  const m = {text, kind:kind||'', t}; st.log.push(m); if (st.log.length > 40) st.log.shift(); out.msgs.push(m);
+  const m = {text, kind:kind||'', t}; st.log = st.log || []; st.log.push(m); if (st.log.length > 40) st.log.shift();
+  if (out && out.msgs) out.msgs.push(m);   // 배틀 상대처럼 화면이 없는 쪽은 기록에만 남김
 }
 
 // ── 라우터 ────────────────────────────────────────────────
