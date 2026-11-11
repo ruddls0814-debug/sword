@@ -114,6 +114,21 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
 .foe .meta span{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
 .foe button{border-radius:10px;padding:8px 12px;background:var(--coal);border:1px solid var(--ember);color:var(--ember);font-weight:700;white-space:nowrap}
 .foe button:disabled{opacity:.4;border-color:var(--ash);color:var(--dim)}
+.bmode{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--coal);border:1px solid var(--ash);border-radius:12px;padding:4px;margin:0 0 10px}
+.bmode button{font:inherit;font-weight:800;font-size:15px;padding:10px 8px;border:0;border-radius:9px;background:transparent;color:var(--dim);cursor:pointer}
+.bmode button[aria-pressed="true"]{background:var(--soot);color:var(--bone);box-shadow:inset 0 0 0 1px var(--ember)}
+.bmode button.ya[aria-pressed="true"]{box-shadow:inset 0 0 0 1px var(--bad);color:#ffb4a8}
+.foe.ya button{border-color:var(--bad);color:#ffb4a8}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ash);margin-right:5px;vertical-align:1px}.dot.on{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.yabox{border-color:var(--bad)!important;text-align:center}
+.yabox .vsrow{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin:4px 0}
+.yabox .vsrow div{display:grid;justify-items:center;gap:4px;min-width:0}
+.yabox .vsrow .art{width:72px;height:72px;border-radius:12px}
+.yabox .vsrow b{font-size:14px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.yabox .vsrow small{font-size:12px;color:var(--dim)}
+.yabox .vsrow i{font-style:normal;font-family:var(--f-display);color:var(--bad);font-size:24px}
+.yabox .warn{margin:0;font-size:13.5px;line-height:1.55;color:#ffb4a8}
+.yabox .cd{height:6px;border-radius:3px;background:var(--ash);overflow:hidden}.yabox .cd span{display:block;height:100%;background:var(--bad);transition:width 1s linear}
 .dl{background:var(--coal);border:1px solid var(--ash);border-radius:12px;margin-bottom:6px}
 .dl summary{display:flex;justify-content:space-between;gap:8px;padding:10px 12px;cursor:pointer;list-style:none}
 .dl summary::-webkit-details-marker{display:none}
@@ -509,7 +524,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
         <div class="chatlog" id="chatLog"><p class="empty">아직 대화가 없습니다. 먼저 인사해 보세요.</p></div>
         <form class="chatform" id="chatForm" autocomplete="off"><input id="chatInput" maxlength="120" placeholder="메시지 입력 (최대 120자)" aria-label="채팅 메시지" enterkeyhint="send"><button class="btn hot" type="submit" id="chatSend">보내기</button></form></div>
       <div class="pane" id="p-feed" hidden><div class="chat" id="feed"></div></div>
-      <div class="pane" id="p-arena" hidden><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 6px"><p class="note" id="battleLeft" style="margin:0"></p><button class="btn" type="button" id="foeRefresh" style="padding:8px 12px;font-size:14px;white-space:nowrap">🔄 새로고침</button></div><div id="foes"></div><p class="note">상대는 다른 플레이어의 지금 검입니다. 이기면 상금을 받고, 지면 참가비가 상대에게 갑니다. 진 쪽 검은 확률로 강화 단계가 1 떨어집니다(높은 단계일수록 잘 버팁니다). 하루 10번까지 도전할 수 있습니다.</p><p class="note"><b>상성</b> · 불 → 쇠 → 자연 → 땅 → 물 → 불 순서로 앞이 뒤를 이깁니다. 빛과 어둠은 서로 상극이라 먼저 도전한 쪽이 유리합니다. 유리하면 강화 단계 +2만큼, 불리하면 -2만큼 세게 싸웁니다. 히든 우진은 매번 예측 불가!</p></div>
+      <div class="pane" id="p-arena" hidden><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 6px"><p class="note" id="battleLeft" style="margin:0"></p><button class="btn" type="button" id="foeRefresh" style="padding:8px 12px;font-size:14px;white-space:nowrap">🔄 새로고침</button></div><div class="bmode" role="group" aria-label="배틀 모드"><button type="button" id="bmNormal" aria-pressed="true">⚔️ 일반 배틀</button><button type="button" id="bmYacha" class="ya" aria-pressed="false">👹 야차 배틀</button></div><div id="foes"></div><p class="note" id="bmNote"></p><p class="note"><b>상성</b> · 불 → 쇠 → 자연 → 땅 → 물 → 불 순서로 앞이 뒤를 이깁니다. 빛과 어둠은 서로 상극이라 먼저 도전한 쪽이 유리합니다. 유리하면 강화 단계 +2만큼, 불리하면 -2만큼 세게 싸웁니다. 히든 우진은 매번 예측 불가!</p></div>
       <div class="pane" id="p-hunt" hidden style="max-height:none">
         <div class="hscene" id="hScene">
           <div class="hground"></div>
@@ -648,7 +663,12 @@ function renderBoard(){if(!BOARD)return;
     d.innerHTML=`<div class="av" style="color:${css(tierOf(x.lv).c)}">+${x.lv}</div><div class="meta"><b></b><span><em class="mt mt${x.match==null?"q":x.match}">${x.match==null?"상성 ???":x.match>0?"▲ 상성 유리":x.match<0?"▼ 상성 불리":"상성 보통"}</em> ${x.type} · 승률 ${x.winP}%${x.match==null?"?":""} · 상금 ${fmt(x.prize)} G · 참가비 ${fmt(x.fee)} G</span></div>`;
     d.querySelector("b").textContent=x.nickname+" · "+x.name;
     if(x.line!=null&&x.lv>0){const av=d.querySelector(".av");av.classList.add("img");av.innerHTML=`<span>+${x.lv}</span>`;setArt(av,x.line,x.lv)}
-    const b=document.createElement("button");b.textContent="도전";b.disabled=BUSY||(ST&&(ST.gold<x.fee||ST.battlesLeft<=0));b.onclick=()=>act("battle",{targetId:x.id});d.append(b);fo.append(d)})}
+    const sp=d.querySelector(".meta span");const dot=document.createElement("i");dot.className="dot"+(x.online?" on":"");dot.title=x.online?"접속 중":"접속 안 함";sp.prepend(dot);
+    const b=document.createElement("button");
+    if(BMODE==="yacha"){d.classList.add("ya");sp.lastChild.remove();sp.append(` ${x.type} · 승률 ${x.winP}%${x.match==null?"?":""} · 상대가 지면 ${fmt(x.sell)} G에 판매`);
+      b.textContent=x.online?"야차 신청":"접속 안 함";b.disabled=BUSY||!x.online||!(x.lv>0)||!(ST&&ST.lv>0)||!!YA.out;b.onclick=()=>yachaConfirm(x)}
+    else{b.textContent="도전";b.disabled=BUSY||(ST&&(ST.gold<x.fee||ST.battlesLeft<=0));b.onclick=()=>act("battle",{targetId:x.id})}
+    d.append(b);fo.append(d)})}
 let DEXSEL=null;
 function dexSummary(seen){const L=META.lines,ks=Object.keys(seen).filter(k=>seen[k]>=1);const pts=ks.reduce((t,k)=>t+seen[k],0);
   return{found:ks.length,hidden:ks.filter(k=>L[k]&&L[k].h).length,maxed:ks.filter(k=>seen[k]>=20).length,pct:Math.round(pts/(L.length*20)*1000)/10}}
@@ -711,8 +731,10 @@ function playBattle(b){return new Promise(done=>{
   at(2550,()=>{const W=b.win?L:R,Lo=b.win?R:L;W.classList.remove("hit","back");Lo.classList.remove("hit","back");
     Lo.classList.add("lose");W.classList.add("winr");
     bn.textContent=b.win?"승리!":"패배…";bn.style.color=b.win?"var(--ok)":"var(--bad)";bn.classList.add("on");
-    const sub=document.createElement("small");sub.textContent=(b.win?"상대 검이 ":"내 검이 ")+(b.drop?"-1강 떨어졌다!":"버텨 냈다!");sub.style.color=b.drop?"var(--bad)":"var(--warn)";bn.append(sub);
-    const tg=Lo.querySelector(".tag");tg.textContent=b.drop?"-1":"버팀";tg.style.color=b.drop?"var(--bad)":"var(--warn)";tg.classList.add("on");
+    const ya=b.mode==="yacha",sub=document.createElement("small");
+    sub.textContent=ya?(b.win?"상대 검이 자동 판매됐다!":`내 검이 ${fmt(b.price)} G에 자동 판매됐다…`):(b.win?`상금 +${fmt(b.gold||0)} G`:`참가비 -${fmt(b.gold||0)} G`);
+    sub.style.color=ya?"var(--bad)":(b.win?"var(--ok)":"var(--warn)");bn.append(sub);
+    const tg=Lo.querySelector(".tag");tg.textContent=ya?"판매":(b.win?"패배":"패배");tg.style.color=ya?"var(--bad)":"var(--warn)";tg.classList.add("on");
     try{if(SOUND){if(b.win)sfx("success",2);else sfx("destroy",1)}}catch(e){}});
   at(4000,end);
 })}
@@ -1072,6 +1094,54 @@ async function loadAdmin(){const box=$("adminBox");box.innerHTML='<p class="empt
       box.append(d)})}
   catch(e){box.innerHTML='<p class="empty">불러오지 못했습니다.</p>'}}
 
+// ── 배틀 모드 / 야차 배틀 ──
+let BMODE="normal";try{if(localStorage.getItem("bmode")==="yacha")BMODE="yacha"}catch(e){}
+const YA={out:null,inc:null};
+function setBMode(m){BMODE=m;try{localStorage.setItem("bmode",m)}catch(e){}$("bmNormal").setAttribute("aria-pressed",String(m==="normal"));$("bmYacha").setAttribute("aria-pressed",String(m==="yacha"));
+  $("bmNote").innerHTML=m==="yacha"?"<b style=\"color:#ffb4a8\">👹 야차 배틀</b> · 지금 접속 중(초록 점)인 사람에게 신청하고, 상대가 30초 안에 수락하면 바로 겨룹니다. <b>진 사람의 검은 그 자리에서 자동 판매</b>되고 판매 금액은 진 사람이 받습니다. 참가비·상금은 없고, 하루 배틀 횟수도 쓰지 않습니다. +1 이상 검끼리만 할 수 있습니다.":"<b>⚔️ 일반 배틀</b> · 상대는 다른 플레이어의 지금 검입니다. 이기면 상금을 받고, 지면 참가비가 상대에게 갑니다. 검은 떨어지지 않습니다. 하루 10번까지 도전할 수 있습니다.";
+  if(BOARD)renderBoard()}
+$("bmNormal").onclick=()=>setBMode("normal");$("bmYacha").onclick=()=>setBMode("yacha");setBMode(BMODE);
+function yaSide(p){const d=document.createElement("div");if(p.line!=null&&p.lv>0){const a=document.createElement("div");a.className="art";setArt(a,p.line,p.lv);d.append(a)}const b=document.createElement("b");b.textContent=p.nick;const s=document.createElement("small");s.textContent=`+${p.lv} ${p.name||""}`;d.append(b,s);return d}
+function yaBox(label){const box=document.createElement("div");box.className="gate";box.setAttribute("role","alertdialog");box.setAttribute("aria-label",label);
+  const c=document.createElement("div");c.className="giftbox yabox";box.append(c);document.body.append(box);return {box,c}}
+function yaVs(me,foe){const r=document.createElement("div");r.className="vsrow";const v=document.createElement("i");v.textContent="VS";r.append(yaSide(me),v,yaSide(foe));return r}
+function yaCountdown(c,exp,wait,onEnd){const bar=document.createElement("div");bar.className="cd";const sp=document.createElement("span");bar.append(sp);const t=document.createElement("p");t.style.cssText="margin:0;font-size:13px;color:var(--dim)";c.append(bar,t);
+  const tick=()=>{const left=Math.max(0,exp-Date.now());sp.style.width=(left/wait*100)+"%";t.textContent=`${Math.ceil(left/1000)}초 남음`;if(left<=0){clearInterval(iv);onEnd()}};const iv=setInterval(tick,250);tick();return ()=>clearInterval(iv)}
+function myP(){return {nick:ST.nickname+" (나)",lv:ST.lv,line:ST.line,name:ST.name}}
+// 신청하기 전에 한 번 더 확인
+function yachaConfirm(x){if(!ST||YA.out)return;const {box,c}=yaBox("야차 배틀 신청");
+  const h=document.createElement("h2");h.textContent="👹 야차 배틀 신청";
+  const w=document.createElement("p");w.className="warn";w.textContent=`지면 내 +${ST.lv} ${ST.name}이(가) 그 자리에서 ${fmt(ST.sell)} G에 자동 판매됩니다. 이기면 ${x.nickname}님의 검이 판매됩니다. 상대가 수락해야 시작합니다.`;
+  const row=document.createElement("div");row.className="grow";const no=document.createElement("button");no.type="button";no.className="btn";no.textContent="취소";const ok=document.createElement("button");ok.type="button";ok.className="btn hot";ok.textContent="신청 보내기";row.append(no,ok);
+  c.append(h,yaVs(myP(),{nick:x.nickname,lv:x.lv,line:x.line,name:x.name}),w,row);
+  const close=()=>box.remove();no.onclick=close;box.addEventListener("click",e=>{if(e.target===box)close()});
+  ok.onclick=async()=>{ok.disabled=true;let r;try{r=await call("yachaAsk",{targetId:x.id})}catch(e){r={ok:false,error:"서버 응답이 늦습니다"}}close();
+    if(!r.ok){toast(r.error);return}yachaWaiting(r.yacha,x)}}
+// 상대 답을 기다리는 창
+function yachaWaiting(y,x){const {box,c}=yaBox("야차 배틀 대기");YA.out={cid:y.cid,box,x};renderBoard();
+  const h=document.createElement("h2");h.textContent="👹 답을 기다리는 중…";const p=document.createElement("p");p.style.margin="0";p.textContent=`${x.nickname}님에게 야차 배틀을 신청했습니다.`;
+  const cancel=document.createElement("button");cancel.type="button";cancel.className="btn";cancel.textContent="신청 취소";c.append(h,yaVs(myP(),{nick:x.nickname,lv:x.lv,line:x.line,name:x.name}),p);
+  const stop=yaCountdown(c,y.exp,y.wait,()=>yachaOutEnd("응답이 없어 야차 신청이 취소되었습니다",true));c.append(cancel);YA.out.stop=stop;
+  cancel.onclick=()=>yachaOutEnd("야차 신청을 취소했습니다",true)}
+function yachaOutEnd(msg,tellServer){const o=YA.out;if(!o)return;YA.out=null;o.stop&&o.stop();o.box.remove();if(msg)toast(msg);if(tellServer)call("yachaCancel",{cid:o.cid}).catch(()=>{});renderBoard()}
+// 나에게 온 신청
+function yachaIncoming(e){if(YA.inc)YA.inc.close();if(e.exp<=Date.now()+1000)return;const {box,c}=yaBox("야차 배틀 신청 받음");
+  const h=document.createElement("h2");h.textContent="👹 야차 배틀 신청이 왔습니다!";
+  const f=e.from,w=document.createElement("p");w.className="warn";
+  w.textContent=ST.lv>0?`수락해서 지면 내 +${ST.lv} ${ST.name}이(가) ${fmt(ST.sell)} G에 자동 판매됩니다. 이기면 ${f.nick}님의 검이 ${fmt(f.sell)} G에 판매됩니다.`:"지금 내 검이 +0이라 수락할 수 없습니다.";
+  const row=document.createElement("div");row.className="grow";const no=document.createElement("button");no.type="button";no.className="btn";no.textContent="거절";const ok=document.createElement("button");ok.type="button";ok.className="btn hot";ok.textContent="수락";ok.disabled=!(ST.lv>0);row.append(no,ok);
+  c.append(h,yaVs(myP(),{nick:f.nick,lv:f.lv,line:f.line,name:f.name}),w);const stop=yaCountdown(c,e.exp,e.wait,()=>close("시간이 지나 야차 신청이 사라졌습니다"));c.append(row);
+  const close=(msg)=>{stop();box.remove();if(YA.inc&&YA.inc.cid===e.cid)YA.inc=null;if(msg)toast(msg)};YA.inc={cid:e.cid,close};
+  try{if(SOUND)sfx("drum")}catch(x){}if(navigator.vibrate)try{navigator.vibrate([80,60,80])}catch(x){}
+  no.onclick=()=>{close();call("yachaAnswer",{cid:e.cid,accept:false}).then(r=>{if(r&&r.ok)toast("거절했습니다")}).catch(()=>{})};
+  ok.onclick=async()=>{if(ok.dataset.arm!=="1"){ok.dataset.arm="1";ok.textContent="정말 수락 (지면 판매)";setTimeout(()=>{if(ok.isConnected){ok.dataset.arm="";ok.textContent="수락"}},3000);return}
+    close();if(BUSY){toast("진행 중인 강화가 끝나면 다시 눌러 주세요");return}await act("yachaAnswer",{cid:e.cid,accept:true})}}
+async function yachaEvent(e){
+  if(e.type==="yachaAsk"){yachaIncoming(e);return}
+  if(e.type==="yachaGone"){if(YA.inc&&YA.inc.cid===e.cid)YA.inc.close(`${e.nick}님이 야차 신청을 취소했습니다`);return}
+  if(e.type==="yachaNo"){if(YA.out&&YA.out.cid===e.cid)yachaOutEnd(e.why==="nosword"?"검이 +0이 되어 야차 배틀이 취소되었습니다":`${e.nick}님이 야차 배틀을 거절했습니다`,false);return}
+  if(e.type==="yachaDone"){if(YA.out&&YA.out.cid===e.cid)yachaOutEnd("",false);try{await playBattle(e.battle)}catch(x){}const q=await call("me").catch(()=>null);if(q&&q.ok){const before=ST.lv;ST=q.state;fx(e.battle.win?"win":"lose",before);render();refreshBoard()}}}
+
 // ── 개인 기록 조회·되돌리기 (최근 7일) ──
 function buildHistory(box){const w=document.createElement("div");w.className="give";
   w.innerHTML='<b>기록 조회 · 되돌리기</b><p class="hint">강화·판매·배틀·선물·사냥 등 골드나 검이 바뀔 때마다 그때 상태를 남깁니다 (7일 보관). 「이 시점으로」를 누르면 그 줄의 <b>결과 상태</b>로 되돌립니다.</p><select id="histWho" aria-label="플레이어"><option value="">플레이어 선택</option></select><div class="hlist" id="histList"></div>';box.append(w);
@@ -1198,6 +1268,7 @@ function paintStage(e,instant){lastLive=e;const st=$("liveStage");const [rt,rc]=
 function showLive(e){
   if(e.type==="high"){showHigh(e);return}
   if(e.type==="drop"){if(ST&&e.to===ST.id)showDropAlert(e);return}
+  if(e.type&&e.type.startsWith("yacha")){if(ST&&e.to===ST.id)yachaEvent(e);return}
   if(e.type==="restored"){if(ST&&e.to===ST.id){toast(`관리자가 내 기록을 ${e.when} 시점으로 되돌렸습니다`);loadMe()}return}
   if(e.type==="gift"){if(ST&&e.to===ST.id){toast(`🎁 ${e.nick}님이 ${fmt(e.amount)} G를 보냈습니다!${e.note?" \""+e.note+"\"":""}`);try{if(SOUND)sfx("coin",6)}catch(x){}call("me").then(q=>{if(q&&q.ok){ST=q.state;render()}}).catch(()=>{})}return}
   if(e.type==="cheer"){floatEmoji(e.emoji);if(ST&&e.to===ST.id&&e.id!==ST.id)toast(`${e.nick}님이 응원합니다 ${e.emoji}`);return}
@@ -1379,7 +1450,7 @@ async function openHunt(){if(META&&!META.dungeons){try{const m=await call("boots
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794376754;
+const BUILD=1794382166;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
