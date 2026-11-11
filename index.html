@@ -364,6 +364,26 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
 .gobbox ul{margin:0;padding:0;list-style:none;display:grid;gap:6px}
 .gobbox li b{color:var(--warn)}
 @media (prefers-reduced-motion:reduce){.hero.swing .harm,.hero.idle .harm,.gobbox svg{animation:none}}
+.menubar{padding:8px 0 6px;border-bottom:1px solid var(--ash)}
+#menuBtn{display:flex;align-items:center;gap:8px;width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--ash);background:var(--soot);color:var(--bone);font-weight:700;font-size:15px}
+#menuBtn b{color:var(--ember);font-weight:800}
+#menuBtn .chev{margin-left:auto;color:var(--dim);transition:transform .2s}
+#menuBtn[aria-expanded="true"] .chev{transform:rotate(180deg)}
+#menuGrid.tabs{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;padding:10px 0 12px;border-bottom:1px solid var(--ash);overflow:visible}
+#menuGrid[hidden]{display:none!important}
+#menuGrid button{position:relative;display:grid;justify-items:center;gap:4px;padding:12px 6px;border:1px solid var(--ash);border-radius:14px;background:rgba(255,255,255,.02);color:var(--bone);font-weight:700;font-size:13px}
+#menuGrid button i{font-style:normal;font-size:22px;line-height:1}
+#menuGrid button[aria-selected="true"]{border-color:var(--ember);background:rgba(255,120,40,.1)}
+#menuGrid button .badge,#menuBtn .badge{position:absolute;top:6px;right:8px}
+#menuBtn{position:relative}#menuBtn .badge{position:static;margin-left:4px}
+#menuGrid button .live-dot{position:absolute;top:8px;left:8px}
+.giftbox{width:min(380px,100%);background:var(--soot);border:1px solid var(--ash);border-radius:20px;padding:20px;display:grid;gap:8px}
+.giftbox h2{font-family:var(--f-display);font-weight:400;font-size:24px;margin:0 0 4px}
+.giftbox label{font-size:13px;color:var(--dim);font-weight:700}
+.giftbox input{width:100%;padding:12px;border-radius:12px;border:1px solid var(--ash);background:var(--coal,#111);color:var(--bone);font-size:18px;box-sizing:border-box}
+.giftbox .gquick{display:flex;gap:6px}.giftbox .gquick .btn{flex:1;padding:8px;font-size:14px}
+.giftbox .gsum{margin:4px 0;font-size:13px}
+.giftbox .grow{display:flex;gap:8px}.giftbox .grow .btn{flex:1;font-size:17px}
 .appdl{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:7px 12px;font-size:13px;font-weight:700;background:linear-gradient(180deg,#2c3f2a,#1e2c1d);border:1px solid #4f7a4a;color:#cfeec9}
 .appdl.big{justify-content:center;width:100%;padding:12px;font-size:15px;border-radius:14px}
 .isheet{width:min(400px,100%);background:var(--soot);border:1px solid var(--ash);border-radius:20px;padding:20px;display:grid;gap:12px}
@@ -434,17 +454,19 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
 
   <aside class="side">
     <div class="panel">
-      <div class="tabs" role="tablist">
-        <button role="tab" aria-selected="true" data-tab="log">내 기록</button>
-        <button role="tab" aria-selected="false" data-tab="live"><span class="live-dot" id="liveDot" hidden></span>공개 강화장</button>
-        <button role="tab" aria-selected="false" data-tab="chat">채팅<span class="badge" id="chatBadge" hidden>0</span></button>
-        <button role="tab" aria-selected="false" data-tab="feed">소식</button>
-        <button role="tab" aria-selected="false" data-tab="arena">배틀</button>
-        <button role="tab" aria-selected="false" data-tab="hunt">⛏️ 사냥</button>
-        <button role="tab" aria-selected="false" data-tab="rank">랭킹</button>
-        <button role="tab" aria-selected="false" data-tab="shop">상점</button>
-        <button role="tab" aria-selected="false" data-tab="dex">도감</button>
-        <button role="tab" aria-selected="false" data-tab="admin" id="adminTab" hidden>관리</button>
+      <div class="menubar"><button type="button" id="menuBtn" aria-expanded="false" aria-controls="menuGrid"><span aria-hidden="true">☰</span> 메뉴 <b id="menuCur">내 기록</b><span class="badge" id="menuBadge" hidden>0</span><span class="chev" aria-hidden="true">▾</span></button></div>
+      <div class="tabs menugrid" id="menuGrid" role="tablist" hidden>
+        <button role="tab" aria-selected="true" data-tab="log" data-label="내 기록"><i aria-hidden="true">📜</i>내 기록</button>
+        <button role="tab" aria-selected="false" data-tab="live" data-label="공개 강화장"><i aria-hidden="true">📺</i><span class="live-dot" id="liveDot" hidden></span>공개 강화장</button>
+        <button role="tab" aria-selected="false" data-tab="chat" data-label="채팅"><i aria-hidden="true">💬</i><span class="badge" id="chatBadge" hidden>0</span>채팅</button>
+        <button role="tab" aria-selected="false" data-tab="feed" data-label="소식"><i aria-hidden="true">📰</i>소식</button>
+        <button role="tab" aria-selected="false" data-tab="arena" data-label="배틀"><i aria-hidden="true">⚔️</i>배틀</button>
+        <button role="tab" aria-selected="false" data-tab="hunt" data-label="사냥"><i aria-hidden="true">⛏️</i>사냥</button>
+        <button role="tab" aria-selected="false" data-tab="rank" data-label="랭킹"><i aria-hidden="true">🏆</i>랭킹</button>
+        <button role="tab" aria-selected="false" data-tab="gift" data-label="선물"><i aria-hidden="true">🎁</i>선물</button>
+        <button role="tab" aria-selected="false" data-tab="shop" data-label="상점"><i aria-hidden="true">🛒</i>상점</button>
+        <button role="tab" aria-selected="false" data-tab="dex" data-label="도감"><i aria-hidden="true">📖</i>도감</button>
+        <button role="tab" aria-selected="false" data-tab="admin" data-label="관리" id="adminTab" hidden><i aria-hidden="true">🔧</i>관리</button>
       </div>
       <div class="pane" id="p-log"><div class="chat" id="chat"></div></div>
       <div class="pane" id="p-live" hidden>
@@ -486,6 +508,7 @@ kbd{font-family:var(--f-body);font-size:10px;border:1px solid var(--ash);border-
         <p class="note">던전을 고르면 검을 든 내 캐릭터가 바위를 깨며 골드를 모읍니다. 게임을 꺼 두어도 최대 8시간치까지 주머니에 쌓이니, 들어와서 「수확」을 누르세요. 사냥 10분마다 가끔 <b>황금고블린</b>이 나타나 강화 버프를 줍니다. 검 단계가 던전 조건보다 낮아지면 들어갈 수 있는 층으로 자동으로 내려갑니다.</p>
       </div>
       <div class="pane" id="p-rank" hidden><div id="ranking"></div></div>
+      <div class="pane" id="p-gift" hidden><p class="note" id="giftInfo" style="margin:0 0 6px"></p><div id="giftList"></div><p class="note">친구에게 골드를 보낼 수 있습니다. 보내는 사람이 수수료 5%를 더 냅니다. 하루 5번, 500만 G까지 보낼 수 있고, 가입하고 24시간이 지나야 보낼 수 있습니다.</p></div>
       <div class="pane" id="p-shop" hidden>
         <div class="shop">
           <div class="item"><div><b>파괴 방지</b><p>강화할 때 「파괴 방지」를 체크하면 지금 검 판매가의 1/4을 더 내고, 파괴가 나와도 단계가 유지됩니다. +15부터는 쓸 수 없습니다.</p></div><span id="buyScroll" hidden></span><span id="scrollPrice" hidden></span></div>
@@ -594,7 +617,8 @@ function renderBoard(){if(!BOARD)return;
   BOARD.feed.forEach(m=>{const d=document.createElement("div");d.className="msg";const t=document.createElement("span");t.className="t";t.textContent=m.t;d.append(t,document.createTextNode(m.text));f.append(d)});
   const r=$("ranking");r.innerHTML="";BOARD.ranking.forEach((p,i)=>{const d=document.createElement("div");d.className="rank"+(p.me?" me":"");
     d.innerHTML=`<div class="no">${i+1}</div><div class="meta"><b></b><span></span></div><div style="color:${css(tierOf(p.lv).c)};font-family:var(--f-display);font-size:18px">+${p.lv}</div>`;
-    d.querySelector("b").textContent=p.nickname+(p.me?" (나)":"");d.tabIndex=0;d.style.cursor="pointer";d.title="도감 보기";d.onclick=()=>openOthersDex(p.id,p.nickname);d.querySelector("span").textContent=`${p.name}${p.hidden?" · 히든":""} · 최고 +${p.best}`;r.append(d)});
+    d.querySelector("b").textContent=p.nickname+(p.me?" (나)":"");d.tabIndex=0;d.style.cursor="pointer";d.title="도감 보기";d.onclick=()=>openOthersDex(p.id,p.nickname);d.querySelector("span").textContent=`${p.name}${p.hidden?" · 히든":""} · 최고 +${p.best}`;if(!p.me){const gb=document.createElement("button");gb.type="button";gb.className="link";gb.textContent="🎁";gb.title=p.nickname+"님에게 선물";gb.setAttribute("aria-label",p.nickname+"님에게 선물");gb.style.fontSize="18px";gb.onclick=ev=>{ev.stopPropagation();openGift(p)};d.style.gridTemplateColumns="28px 1fr auto auto";d.append(gb)}r.append(d)});
+  if(!$("p-gift").hidden)renderGiftPane();
   const fo=$("foes");fo.innerHTML="";if(!BOARD.foes.length)fo.innerHTML='<p class="empty">아직 다른 플레이어가 없습니다. 링크를 카톡방에 공유해 친구를 불러 보세요.</p>';
   BOARD.foes.forEach(x=>{const d=document.createElement("div");d.className="foe";
     d.innerHTML=`<div class="av" style="color:${css(tierOf(x.lv).c)}">+${x.lv}</div><div class="meta"><b></b><span><em class="mt mt${x.match==null?"q":x.match}">${x.match==null?"상성 ???":x.match>0?"▲ 상성 유리":x.match<0?"▼ 상성 불리":"상성 보통"}</em> ${x.type} · 승률 ${x.winP}%${x.match==null?"?":""} · 상금 ${fmt(x.prize)} G · 참가비 ${fmt(x.fee)} G</span></div>`;
@@ -712,6 +736,7 @@ function fx(kind,before){if(parts.length>160)parts=parts.slice(-160);if(rings.le
   else if(kind==="aid"){result("지원금 도착","var(--warn)","pop");fxCoins(3);sfx("coin",6)}
   else if(kind==="win"){result("배틀 승리","var(--ok)","pop");fxSuccess(2,css("--ok"),false);showTab("log")}
   else if(kind==="lose"){result(ST.lv<before?"배틀 패배 · 검 -1":"배틀 패배 · 검은 버팀","var(--bad)","shake");if(ST.lv<before)fxDestroy(1);showTab("log")}
+  else if(kind==="gift"){result("선물 완료","var(--warn)","pop");fxCoins(2);sfx("coin",4)}
   else if(kind==="claim"){result("수확 완료","var(--warn)","pop");fxCoins(4);sfx("coin",6)}
   else if(kind==="hunt"){result("사냥 시작","var(--ok)","pop");sfx("cheer")}
   else result("","")}
@@ -724,7 +749,7 @@ async function refreshBoard(){try{const b=await call("board");if(b&&b.ok){BOARD=
 $("foeRefresh").onclick=async()=>{const b=$("foeRefresh");if(b.disabled)return;b.disabled=true;b.textContent="불러오는 중…";
   await refreshBoard();let n=3;const tick=()=>{if(n<=0){b.disabled=false;b.textContent="🔄 새로고침";return}b.textContent="🔄 "+n+"초";n--;setTimeout(tick,1000)};tick()};
 
-function showTab(t){document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));["log","live","chat","feed","arena","hunt","rank","shop","dex","admin"].forEach(x=>$("p-"+x).hidden=x!==t);if(t==="hunt")openHunt();else if(ST)huntAnim();if(t==="chat"){UNREAD=0;updBadge();const cl=$("chatLog");cl.scrollTop=cl.scrollHeight}if(["feed","arena","rank"].includes(t))refreshBoard();if(t==="admin")loadAdmin();if(t==="live"){$("livebar").hidden=true;enterChannel()}else leaveChannel()}
+function showTab(t){document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));["log","live","chat","feed","arena","hunt","rank","gift","shop","dex","admin"].forEach(x=>$("p-"+x).hidden=x!==t);menuLabel(t);setMenuOpen(false);if(t==="gift"){renderGiftPane();refreshBoard()}if(t==="hunt")openHunt();else if(ST)huntAnim();if(t==="chat"){UNREAD=0;updBadge();const cl=$("chatLog");cl.scrollTop=cl.scrollHeight}if(["feed","arena","rank"].includes(t))refreshBoard();if(t==="admin")loadAdmin();if(t==="live"){$("livebar").hidden=true;enterChannel()}else leaveChannel()}
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 
 // ── 괴짜 대장장이 대사 ── {name} 검 이름, {desc} 검 설명, {lv} 단계, {prev} 이전 단계, {nick} 플레이어
@@ -1078,7 +1103,7 @@ $("roomCancel").onclick=()=>{$("roomForm").hidden=true};$("roomPwCancel").onclic
 $("roomForm").onsubmit=async e=>{e.preventDefault();const name=$("roomName").value.trim(),pw=$("roomPwNew").value;const q=await call("roomCreate",{name,pw});if(!q.ok){toast(q.error);return}$("roomName").value="";$("roomPwNew").value="";toast(`「${q.room.name}」 방을 열었습니다`);setRoom(q.room,pw)};
 $("roomPwForm").onsubmit=async e=>{e.preventDefault();if(!PENDROOM)return;const pw=$("roomPwIn").value;const q=await call("roomJoin",{room:PENDROOM.id,pw});if(!q.ok){toast(q.error);return}setRoom(q.room,pw)};
 setTimeout(()=>{try{setRoom(ROOM,ROOMPW)}catch(e){}},0);
-function updBadge(){const b=$("chatBadge");b.hidden=!UNREAD;b.textContent=UNREAD>99?"99+":UNREAD}
+function updBadge(){const b=$("chatBadge"),m=$("menuBadge");b.hidden=m.hidden=!UNREAD;b.textContent=m.textContent=UNREAD>99?"99+":UNREAD}
 function handleChat(r){if(!r.chat)return;const first=CSEQ<0;if(r.chatSeq!=null&&r.chatSeq<CSEQ){CSEQ=-1;$("chatLog").innerHTML=""}
   const box=$("chatLog");if(r.chat.length){const em=box.querySelector(".empty");if(em)em.remove()}
   const atBottom=box.scrollHeight-box.scrollTop-box.clientHeight<60;
@@ -1108,6 +1133,7 @@ function paintStage(e,instant){lastLive=e;const st=$("liveStage");const [rt,rc]=
   $("liveQuote").textContent="";setTimeout(()=>{try{const lq=quipFor(e.result,e.after,e.before,e.name,descOf(e.after,e.line),e.beforeName,descOf(e.before,e.beforeLine));$("liveQuote").textContent=lq?"대장장이: "+lq:""}catch(x){}if(inChannel&&!(ST&&e.id===ST.id)){const tn=e.after>=20?5:e.after>=15?4:e.after>=10?3:e.after>=5?2:1;if(e.result==="success"||e.result==="hidden")sfx("success",tn);else if(e.result==="destroy")sfx("destroy",tn);else if(e.result==="saved")sfx("shield");else sfx("keep",tn)}big.textContent="+"+e.after;nm.textContent=e.name;rs.textContent=rt;rs.style.color=rc;big.classList.remove("pop","shake");void big.offsetWidth;big.classList.add(e.result==="success"||e.result==="hidden"?"pop":"shake")},1200)}
 function showLive(e){
   if(e.type==="high"){showHigh(e);return}
+  if(e.type==="gift"){if(ST&&e.to===ST.id){toast(`🎁 ${e.nick}님이 ${fmt(e.amount)} G를 보냈습니다!${e.note?" \""+e.note+"\"":""}`);try{if(SOUND)sfx("coin",6)}catch(x){}call("me").then(q=>{if(q&&q.ok){ST=q.state;render()}}).catch(()=>{})}return}
   if(e.type==="cheer"){floatEmoji(e.emoji);if(ST&&e.to===ST.id&&e.id!==ST.id)toast(`${e.nick}님이 응원합니다 ${e.emoji}`);return}
   paintStage(e,false);$("liveDot").hidden=false;setTimeout(()=>$("liveDot").hidden=true,8000);
   if(ST&&e.id===ST.id)return;
@@ -1169,6 +1195,41 @@ function showGoblin(list){if(!list||!list.length)return;const box=document.creat
   c.append(h,p,ul,bt);box.append(c);document.body.append(box);
   try{if(SOUND){sfx("coin",6);sfx("success",4)}}catch(e){}}
 
+// ── 메뉴 (눌러서 펼치기) ──
+function setMenuOpen(on){$("menuGrid").hidden=!on;$("menuBtn").setAttribute("aria-expanded",String(on))}
+$("menuBtn").onclick=()=>setMenuOpen($("menuGrid").hidden);
+document.addEventListener("click",e=>{if(!$("menuGrid").hidden&&!e.target.closest("#menuGrid")&&!e.target.closest("#menuBtn"))setMenuOpen(false)});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("menuGrid").hidden){setMenuOpen(false);$("menuBtn").focus()}});
+function menuLabel(t){const b=document.querySelector('#menuGrid button[data-tab="'+t+'"]');$("menuCur").textContent=b?b.dataset.label:"메뉴"}
+
+// ── 골드 선물 ──
+function renderGiftPane(){const box=$("giftList");if(!box)return;const gi=META&&META.gift;
+  $("giftInfo").textContent=!ST?"":(!ST.giftAgeOk?`가입하고 ${gi?gi.ageH:24}시간이 지나야 선물할 수 있습니다 (약 ${ST.giftAgeLeftH}시간 남음)`:`오늘 남은 선물 ${ST.giftsLeft}번 · ${fmt(Math.max(0,ST.giftRoom))} G까지 · 수수료 ${Math.round((gi?gi.fee:.05)*100)}%`);
+  box.innerHTML="";const list=BOARD?BOARD.ranking.filter(p=>!p.me):[];
+  if(!list.length){box.innerHTML='<p class="empty">선물할 수 있는 플레이어가 없습니다.</p>';return}
+  list.forEach(p=>{const d=document.createElement("div");d.className="rank";
+    d.innerHTML=`<div class="no">🎁</div><div class="meta"><b></b><span></span></div>`;d.querySelector("b").textContent=p.nickname;d.querySelector("span").textContent=`+${p.lv} ${p.name}`;
+    const bt=document.createElement("button");bt.type="button";bt.className="btn";bt.style.cssText="padding:8px 12px;font-size:14px";bt.textContent="선물하기";bt.onclick=()=>openGift(p);d.append(bt);box.append(d)})}
+function openGift(p){if(!ST)return;const gi=META.gift||{min:100,fee:.05};
+  const box=document.createElement("div");box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","골드 선물");
+  const c=document.createElement("div");c.className="giftbox";
+  const h=document.createElement("h2");h.textContent="🎁 "+p.nickname+"님에게 선물";
+  const lab=document.createElement("label");lab.textContent="보낼 골드";const inp=document.createElement("input");inp.type="text";inp.inputMode="numeric";inp.autocomplete="off";inp.placeholder="예: 10000";inp.id="giftAmt";lab.htmlFor="giftAmt";
+  const quick=document.createElement("div");quick.className="gquick";[[10000,"+1만"],[100000,"+10만"],[1000000,"+100만"]].forEach(([v,t])=>{const b=document.createElement("button");b.type="button";b.className="btn";b.textContent=t;b.onclick=()=>{inp.value=String((parseInt(inp.value.replace(/\D/g,""))||0)+v);upd()};quick.append(b)});
+  const nl=document.createElement("label");nl.textContent="한마디 (선택, 30자)";const note=document.createElement("input");note.type="text";note.maxLength=30;note.id="giftNote";note.placeholder="예: 강화비 보태 써";nl.htmlFor="giftNote";
+  const sum=document.createElement("p");sum.className="gsum";
+  const row=document.createElement("div");row.className="grow";const cancel=document.createElement("button");cancel.type="button";cancel.className="btn";cancel.textContent="취소";const ok=document.createElement("button");ok.type="button";ok.className="btn hot";ok.textContent="보내기";row.append(cancel,ok);
+  c.append(h,lab,inp,quick,nl,note,sum,row);box.append(c);document.body.append(box);setTimeout(()=>inp.focus(),50);
+  function amt(){return parseInt(inp.value.replace(/\D/g,""))||0}
+  function upd(){const a=amt(),fee=Math.ceil(a*gi.fee);inp.value=a?String(a):"";
+    let msg="",bad=true;if(!ST.giftAgeOk)msg=`가입하고 ${gi.ageH||24}시간이 지나야 선물할 수 있습니다`;else if(ST.giftsLeft<=0)msg="오늘 선물 횟수를 다 썼습니다";
+    else if(a<gi.min)msg=`최소 ${fmt(gi.min)} G부터 보낼 수 있습니다`;else if(a>ST.giftRoom)msg=`오늘은 ${fmt(Math.max(0,ST.giftRoom))} G까지 보낼 수 있습니다`;
+    else if(a+fee>ST.gold)msg=`골드가 부족합니다 (보유 ${fmt(ST.gold)} G)`;else{bad=false;msg=`${fmt(a)} G + 수수료 ${fmt(fee)} G = ${fmt(a+fee)} G가 빠집니다`}
+    sum.textContent=msg;sum.style.color=bad?"var(--bad)":"var(--dim)";ok.disabled=bad}
+  inp.addEventListener("input",upd);upd();
+  const close=()=>box.remove();cancel.onclick=close;box.addEventListener("click",e=>{if(e.target===box)close()});
+  ok.onclick=async()=>{if(ok.disabled)return;ok.disabled=true;close();await act("gift",{to:p.id,amount:amt(),note:note.value});renderGiftPane()}}
+
 async function openHunt(){if(META&&!META.dungeons){try{const m=await call("bootstrap");if(m&&m.dungeons)META=m}catch(e){}}renderHunt();try{const r=await call("me");if(r&&r.ok){ST=r.state;render();renderHunt();if(r.goblins&&r.goblins.length)showGoblin(r.goblins)}}catch(e){}}
 (async function init(){try{META=await call("bootstrap");if(!TOKEN)showGate();else await loadMe()}catch(e){$("name").textContent="서버에 연결하지 못했습니다";}
   setInterval(()=>{if(document.visibilityState==="visible"&&ST)refreshBoard()},20000)})();
@@ -1206,7 +1267,7 @@ async function openHunt(){if(META&&!META.dungeons){try{const m=await call("boots
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794328712;
+const BUILD=1794365914;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
