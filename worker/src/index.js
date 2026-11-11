@@ -1234,6 +1234,8 @@ export class Game extends DurableObject {
     this.sql.exec("CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL, exp INTEGER NOT NULL)");
     this.sql.exec("CREATE TABLE IF NOT EXISTS hist (id INTEGER PRIMARY KEY AUTOINCREMENT, pid TEXT NOT NULL, t INTEGER NOT NULL, act TEXT, lv0 INTEGER, lv1 INTEGER, line0 INTEGER, line1 INTEGER, gold0 INTEGER, gold1 INTEGER, state TEXT)");
     this.sql.exec("CREATE INDEX IF NOT EXISTS hist_pid_t ON hist (pid, t)");
+    // 카톡 자랑 카드: 플레이어마다 최근 1장만 보관 (덮어씀)
+    this.sql.exec("CREATE TABLE IF NOT EXISTS share (pid TEXT PRIMARY KEY, v INTEGER, img BLOB, title TEXT, descr TEXT, nick TEXT)");
     // 한 번만: 예전 기록에서 메시지 기록(log)을 빼서 용량을 줄임
     try { const done = this.sql.exec("SELECT v FROM kv WHERE k = '__slim1'").toArray(); if (!done.length) { this.sql.exec("UPDATE hist SET state = json_remove(state, '$.log') WHERE json_valid(state)"); this.sql.exec("INSERT OR REPLACE INTO kv (k, v, exp) VALUES ('__slim1', '1', 9e15)"); } } catch (e) { console.log("slim skip", e && e.message); }
     this.mem = { sql: this.sql, sheets: new Map(), kv: null, kvDirty: new Set(), touched: new Set(), ping: false };
@@ -1266,7 +1268,10 @@ export class Game extends DurableObject {
       const pair = new WebSocketPair(); this.ctx.acceptWebSocket(pair[1]);
       return new Response(null, { status: 101, webSocket: pair[0] });
     }
+    if (req.method === "GET" && url.pathname.startsWith("/img/")) return this.shareImg_(url);
+    if (req.method === "GET" && url.pathname.startsWith("/s/")) return this.sharePage_(url);
     let body = {}; try { body = JSON.parse(await req.text() || "{}"); } catch (e) {}
+    if (body.action === "shareSave") return json(this.shareSave_(body, url));
     if (body.action === "__import") return json(this.run_(() => importData_(body)));
     if (["pitrCheck", "pitrRestore", "pitrUndo"].indexOf(body.action) >= 0) return json(await this.pitr_(body));
     if (body.action === "storage") return json(this.storage_(body));
@@ -1303,6 +1308,39 @@ export class Game extends DurableObject {
     let size = 0; try { size = this.sql.databaseSize; } catch (e) {}
     return {ok:true, size, hist:{rows:h.n||0, bytes:h.b||0, since:h.t0||0}, kv:{rows:k.n||0, bytes:k.b||0}, cells, sockets:this.ctx.getWebSockets().length, limit:1e9};
   }
+  // ── 카톡 공유: 자랑 카드 저장 → 미리보기 카드가 뜨는 공유 주소 ──
+  shareSave_(body, url) {
+    const who = this.run_(() => { const r = findBy_('token', String(body.token || '')); return r && r.status === 'ok' ? {id:r.id, nick:r.nickname} : null; });
+    if (!who || !who.id) return {ok:false, error:'로그인이 필요합니다'};
+    const b64 = String(body.img || "").replace(/^data:image\/\w+;base64,/, "");
+    if (!b64 || b64.length > 1500000) return {ok:false, error:'자랑 카드가 너무 큽니다'};
+    let bytes; try { const bin = atob(b64); bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); } catch (e) { return {ok:false, error:'자랑 카드를 읽지 못했습니다'}; }
+    if (!(bytes[0] === 0xFF && bytes[1] === 0xD8) && !(bytes[0] === 0x89 && bytes[1] === 0x50)) return {ok:false, error:'그림 파일이 아닙니다'};
+    const clip = (t, n) => String(t || "").replace(/[\u0000-\u001f]/g, " ").slice(0, n);
+    const v = Date.now();
+    this.sql.exec("INSERT OR REPLACE INTO share (pid, v, img, title, descr, nick) VALUES (?,?,?,?,?,?)", who.id, v, bytes, clip(body.title, 80), clip(body.desc, 300), who.nick);
+    return {ok:true, url:`${url.origin}/s/${who.id}?v=${v}`, img:`${url.origin}/img/${who.id}.jpg?v=${v}`};
+  }
+  shareRow_(id) { const r = this.sql.exec("SELECT * FROM share WHERE pid = ?", String(id || "")).toArray(); return r[0] || null; }
+  shareImg_(url) {
+    const id = url.pathname.slice(5).replace(/\.(jpg|png)$/, ""), r = this.shareRow_(id);
+    if (!r || !r.img) return new Response("not found", {status:404});
+    const b = new Uint8Array(r.img), png = b[0] === 0x89;
+    return new Response(b, {headers:{"Content-Type": png ? "image/png" : "image/jpeg", "Cache-Control":"public, max-age=600", "Access-Control-Allow-Origin":"*"}});
+  }
+  sharePage_(url) {
+    const id = url.pathname.slice(3).split("/")[0], r = this.shareRow_(id), GAME = "https://ruddls0814-debug.github.io/sword/";
+    const esc = t => String(t || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    const title = r ? r.title : "검키우기 대장간", desc = r ? r.descr : "녹슨 부지깽이를 +20 전설의 검으로! 친구들과 함께 강화하고 배틀하세요.";
+    const img = r ? `${url.origin}/img/${id}.jpg?v=${r.v}` : GAME + "og.png", go = GAME + (r ? `?from=${encodeURIComponent(r.nick)}` : "");
+    const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(title)}</title><meta property="og:type" content="website"><meta property="og:site_name" content="검키우기 대장간">
+<meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}">
+<meta property="og:image" content="${esc(img)}"><meta property="og:image:width" content="900"><meta property="og:image:height" content="1200">
+<meta property="og:url" content="${esc(url.href)}"><meta name="twitter:card" content="summary_large_image"><style>body{margin:0;background:#140e0b;color:#f1e6d6;font:16px/1.6 system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;text-align:center;padding:20px}a{display:inline-block;margin-top:14px;background:#ff7a2f;color:#1a0f08;font-weight:800;padding:14px 22px;border-radius:12px;text-decoration:none}img{max-width:min(320px,80vw);border-radius:14px}</style></head>
+<body><div><img src="${esc(img)}" alt=""><h1 style="font-size:20px">${esc(title)}</h1><p>${esc(desc)}</p><a href="${esc(go)}">⚔️ 지금 바로 하러 가기</a></div><script>location.replace(${JSON.stringify(go)})</script></body></html>`;
+    return new Response(html, {headers:{"Content-Type":"text/html; charset=utf-8", "Cache-Control":"public, max-age=60"}});
+  }
   webSocketMessage(ws, msg) { if (msg === "ping") try { ws.send("pong"); } catch (e) {} }
   webSocketClose(ws, code) { try { ws.close(code, "bye"); } catch (e) {} }
   webSocketError(ws) { try { ws.close(1011, "error"); } catch (e) {} }
@@ -1331,6 +1369,7 @@ export default {
     const stub = env.GAME.get(env.GAME.idFromName("main"));
     if (url.pathname === "/ws") return stub.fetch(req);
     if (req.method === "POST") return stub.fetch(req);
+    if (req.method === "GET" && (url.pathname.startsWith("/s/") || url.pathname.startsWith("/img/"))) return stub.fetch(req);
     return json({ ok: true, service: "검키우기 대장간 서버" });
   },
 };
