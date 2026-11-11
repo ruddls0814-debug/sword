@@ -94,6 +94,24 @@ const Utilities = {
 };
 const HtmlService = {}, ContentService = {};
 
+// ── 개인 기록 (행동마다 한 줄, 그때의 상태 전체 포함, 7일 보관) ──
+const HIST_KEEP_MS = 7 * 86400000;
+function hist_(row, st, prev) {
+  if (!DB || !DB.sql) return;
+  const c = HCTX || {act:'system'};
+  const same = prev.lv === st.lv && Math.round(prev.gold) === Math.round(st.gold) && String(prev.line) === String(st.line);
+  if ((c.act === 'me' || c.act === 'cheer') && same) return;   // 접속만 한 경우는 남기지 않음
+  const act = c.actorId && row.id !== c.actorId ? `${c.act}:by:${c.actorNick}` : c.act;
+  DB.sql.exec("INSERT INTO hist (pid, t, act, lv0, lv1, line0, line1, gold0, gold1, state) VALUES (?,?,?,?,?,?,?,?,?,?)",
+    row.id, Date.now(), act, +prev.lv || 0, +st.lv || 0, prev.line == null || prev.line === '' ? -1 : +prev.line, st.line == null ? -1 : +st.line,
+    Math.round(+prev.gold || 0), Math.round(+st.gold || 0), JSON.stringify(st));
+  if (Math.random() < 0.01) DB.sql.exec("DELETE FROM hist WHERE t < ?", Date.now() - HIST_KEEP_MS);
+}
+function histList_(pid, before, limit) {
+  return DB.sql.exec("SELECT id, t, act, lv0, lv1, line0, line1, gold0, gold1 FROM hist WHERE pid = ? AND t < ? ORDER BY t DESC, id DESC LIMIT ?", pid, before > 0 ? before : 9e15, limit).toArray();
+}
+function histGet_(id) { const r = DB.sql.exec("SELECT * FROM hist WHERE id = ?", id).toArray(); return r[0] || null; }
+
 // ════════════════ 게임 코드 (Code.gs) ════════════════
 /**
  * 검키우기 대장간 — 서버 (Google Apps Script)
@@ -212,9 +230,12 @@ function allRows_() {
   return sh.getRange(2,1,n,P_HEAD.length).getValues().map((r,i)=>({row:i+2, id:r[0], nickname:String(r[1]), pinHash:r[2], token:r[3], lv:+r[4], best:+r[5], line:r[6]===''?null:+r[6], gold:+r[7], state:r[8], status:r[10]||'ok', role:r[11]||'player', intro:String(r[12]||''), created:r[13]}));
 }
 function findBy_(key, val) { return allRows_().find(r => r[key] === val) || null; }
+let HCTX = null;   // 지금 처리 중인 행동 (기록용)
 function save_(row, st) {
   st.updated = Date.now();
   players_().getRange(row.row, 5, 1, 6).setValues([[st.lv, st.best, st.line==null?'':st.line, st.gold, JSON.stringify(st), new Date()]]);
+  if (typeof hist_ === 'function') try { hist_(row, st, {lv:row.lv, gold:row.gold, line:row.line}); } catch (e) {}
+  row.lv = st.lv; row.gold = st.gold; row.line = st.line;
 }
 function feed_(text) {   // 소식은 한국 시간 자정마다 새로 시작
   const sh = feedSheet_();
@@ -362,7 +383,7 @@ function say_(st, out, text, kind) {
 
 // ── 라우터 ────────────────────────────────────────────────
 function api(action, req) {
-  req = req || {};
+  req = req || {}; HCTX = null;
   try {
     if (action === 'bootstrap') return {ok:true, tapBonus:TAP_BONUS, gift:{min:GIFT_MIN, fee:GIFT_FEE, perDay:GIFT_PER_DAY, dayMax:GIFT_DAY_MAX, ageH:GIFT_AGE_H}, dungeons:DUNGEONS, huntCapH:HUNT_CAP_H, buffs:BUFFS.map(b=>({key:b[0],name:b[1],n:b[2],desc:b[4]})), guardMax:GUARD_MAX, types:TYPE_OF, beats:BEATS, protectMax:PROTECT_MAX, lines:LINES.map(l=>({n:l.n,h:l.h,t:TYPE_OF[l.n]||'',names:l.names,desc:DESC[l.n]||[]})), baseDesc:BASE_DESC, odds:ODDS, base:BASE, max:MAX, url:(function(){try{return ScriptApp.getService().getUrl()}catch(e){return ''}})()};
     if (action === 'register') return register_(req);
@@ -414,10 +435,11 @@ function api(action, req) {
       if (!row) return {ok:false, error:'로그인이 필요합니다', needLogin:true};
       if (row.status === 'pending' && !needApproval_()) { players_().getRange(row.row, 11).setValue('ok'); row.status = 'ok'; feed_(`${row.nickname}님이 대장간에 들어왔습니다.`); }
       if (row.status !== 'ok') return {ok:false, error:'가입 승인을 기다리는 중입니다', pending:true};
-      if (['pending','approve','reject','give','roster','setApproval'].indexOf(action) >= 0) return admin_(action, req, row);
+      if (['pending','approve','reject','give','roster','setApproval','history','restore'].indexOf(action) >= 0) { HCTX = {act:'admin:'+action, actorId:'', actorNick:'관리자'}; return admin_(action, req, row); }
       const st = migrate_(Object.assign(fresh_(), JSON.parse(row.state||'{}')));
       const out = {msgs:[], fx:null};
-      const fn = {me:()=>{}, enhance:enhance_, sell:sell_, buyScroll:buyScroll_, aid:aid_, battle:battle_, cheer:cheer_, huntSet:huntSet_, huntStop:huntStop_, huntClaim:huntClaim_, gift:gift_}[action];
+      HCTX = {act:action, actorId:row.id, actorNick:row.nickname};
+    const fn = {me:()=>{}, enhance:enhance_, sell:sell_, buyScroll:buyScroll_, aid:aid_, battle:battle_, cheer:cheer_, huntSet:huntSet_, huntStop:huntStop_, huntClaim:huntClaim_, gift:gift_}[action];
       if (fn && action !== 'cheer') settle_(st, out);
       if (!fn) return {ok:false, error:'알 수 없는 요청: '+action};
       const err = fn(st, req, out, row);
@@ -476,6 +498,25 @@ function admin_(action, req, row) {
     let moved = 0;
     if (!req.on) allRows_().filter(r => r.status === 'pending').forEach(r => { players_().getRange(r.row, 11).setValue('ok'); feed_(`${r.nickname}님이 대장간에 들어왔습니다.`); moved++; });
     return {ok:true, approval:v, approved:moved};
+  }
+  if (action === 'history') {
+    if (typeof histList_ !== 'function') return {ok:false, error:'이 서버에서는 기록 조회를 쓸 수 없습니다'};
+    const p = findBy_('id', String(req.id||'')); if (!p) return {ok:false, error:'플레이어를 찾을 수 없습니다'};
+    const list = histList_(p.id, +req.before || 0, 40).map(h => ({id:h.id, t:Utilities.formatDate(new Date(h.t),'Asia/Seoul','MM.dd HH:mm:ss'), ts:h.t, act:actLabel_(h.act),
+      lv0:h.lv0, lv1:h.lv1, name:nameOf(h.lv1, h.line1 < 0 ? null : h.line1), gold0:h.gold0, gold1:h.gold1}));
+    return {ok:true, nickname:p.nickname, list};
+  }
+  if (action === 'restore') {
+    if (typeof histGet_ !== 'function') return {ok:false, error:'이 서버에서는 되돌리기를 쓸 수 없습니다'};
+    const h = histGet_(+req.hid); if (!h) return {ok:false, error:'그 기록을 찾을 수 없습니다 (7일이 지나 지워졌을 수 있습니다)'};
+    const p = findBy_('id', h.pid); if (!p) return {ok:false, error:'플레이어를 찾을 수 없습니다'};
+    const st = migrate_(Object.assign(fresh_(), JSON.parse(h.state)));
+    const when = Utilities.formatDate(new Date(h.t),'Asia/Seoul','MM.dd HH:mm:ss');
+    say_(st, null, `관리자가 ${when} 시점으로 되돌렸습니다. (+${st.lv}, ${fmt(st.gold)} G)`, 'gold');
+    if (st.hunt && st.hunt.d >= 0) { st.hunt.since = Date.now(); st.hunt.gt = st.hunt.since; }   // 되돌린 뒤 사냥 시간을 다시 쌓지 않게
+    save_(p, st);
+    livePush_({type:'restored', to:p.id, when});
+    return {ok:true, nickname:p.nickname, lv:st.lv, gold:st.gold, when};
   }
   if (action === 'roster') return {ok:true, list:allRows_().filter(r => r.status === 'ok').map(r => ({id:r.id, nickname:r.nickname, gold:r.gold, lv:r.lv}))};
   if (action === 'give') {
@@ -552,6 +593,13 @@ function enhance_(st, req, out, row) {
   if (req.public) livePush_({type:'enh', id:row.id, nick:row.nickname, before, beforeName, beforeLine, line:st.line, after:st.lv, name:nameOf(st.lv, st.line), hidden:isHidden(st.line), result:out.fx, odds:ODDS[before]});
 }
 
+// 기록에 남는 행동 이름
+function actLabel_(a) {
+  const m = String(a||'').match(/^(.*?)(?::by:(.*))?$/), base = m[1], by = m[2];
+  const L = {enhance:'강화', sell:'판매', aid:'파산 지원금', battle:'배틀', huntSet:'사냥 시작', huntStop:'사냥 멈춤', huntClaim:'사냥 수확', gift:'선물', buyScroll:'방지권 구매', me:'사냥 정산', 'admin:give':'관리자 지급', 'admin:restore':'관리자 되돌림', system:'기타'};
+  if (by) return base === 'battle' ? `배틀 당함 (${by})` : base === 'gift' ? `선물 받음 (${by})` : `${L[base]||base} (${by})`;
+  return L[base] || base;
+}
 // ── 자동 사냥 (던전 10단계) ─────────────────────────────────
 // [이름, 바위, 필요 강화 단계, 시간당 골드]
 // 시간당 골드는 그 던전에 들어갈 수 있는 단계의 강화비·판매가에 맞춰 잡았습니다.
@@ -747,6 +795,8 @@ export class Game extends DurableObject {
     this.sql.exec("CREATE TABLE IF NOT EXISTS sheets (name TEXT PRIMARY KEY)");
     this.sql.exec("CREATE TABLE IF NOT EXISTS cells (sheet TEXT NOT NULL, r INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY (sheet, r))");
     this.sql.exec("CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL, exp INTEGER NOT NULL)");
+    this.sql.exec("CREATE TABLE IF NOT EXISTS hist (id INTEGER PRIMARY KEY AUTOINCREMENT, pid TEXT NOT NULL, t INTEGER NOT NULL, act TEXT, lv0 INTEGER, lv1 INTEGER, line0 INTEGER, line1 INTEGER, gold0 INTEGER, gold1 INTEGER, state TEXT)");
+    this.sql.exec("CREATE INDEX IF NOT EXISTS hist_pid_t ON hist (pid, t)");
     this.mem = { sql: this.sql, sheets: new Map(), kv: null, kvDirty: new Set(), touched: new Set(), ping: false };
     // 연결 유지 신호는 서버를 깨우지 않고 바로 답합니다 (요금 없음)
     try { ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong")); } catch (e) {}
@@ -779,7 +829,29 @@ export class Game extends DurableObject {
     }
     let body = {}; try { body = JSON.parse(await req.text() || "{}"); } catch (e) {}
     if (body.action === "__import") return json(this.run_(() => importData_(body)));
+    if (["pitrCheck", "pitrRestore", "pitrUndo"].indexOf(body.action) >= 0) return json(await this.pitr_(body));
     return json(this.run_(() => api(body.action, body)));
+  }
+  // ── 서버 전체 되돌리기 (Cloudflare 특정 시점 복구, 최근 30일) ──
+  async pitr_(body) {
+    const auth = this.run_(() => { const r = findBy_('token', String(body.token || '')); return r && r.role === 'admin' ? {ok:true} : {ok:false, error:'관리자만 할 수 있습니다'}; });
+    if (!auth.ok) return auth;
+    const S = this.ctx.storage;
+    try {
+      let bm;
+      if (body.action === "pitrCheck") bm = await S.getCurrentBookmark();          // 지금 시점으로 다시 불러오기 (데이터는 그대로)
+      else if (body.action === "pitrUndo") { bm = String(body.bookmark || ""); if (!bm) return {ok:false, error:'되돌리기 취소 코드가 없습니다'}; }
+      else {
+        const t = +body.time, now = Date.now();
+        if (!(t > now - 30 * 86400000 + 60000 && t < now - 60000)) return {ok:false, error:'최근 30일 안, 지금보다 1분 이전 시각만 고를 수 있습니다'};
+        bm = await S.getBookmarkForTime(t);
+      }
+      const undo = await S.onNextSessionRestoreBookmark(bm);
+      setTimeout(() => { try { this.ctx.abort("restore"); } catch (e) {} }, 300);   // 다시 시작하면서 복구가 적용됨
+      return {ok:true, undo, check: body.action === "pitrCheck"};
+    } catch (e) {
+      return {ok:false, error:'서버 전체 되돌리기를 쓸 수 없습니다: ' + (e && e.message || e)};
+    }
   }
   webSocketMessage(ws, msg) { if (msg === "ping") try { ws.send("pong"); } catch (e) {} }
   webSocketClose(ws, code) { try { ws.close(code, "bye"); } catch (e) {} }
