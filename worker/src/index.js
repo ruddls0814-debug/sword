@@ -653,9 +653,12 @@ function enhance_(st, req, out, row) {
   if (r < s) {
     if (st.lv === 0) {
       st.line = pickLine_(); const L = LINES[st.line];
-      if (L.h) { try { chatPush_({sys:true, nick:'대장간', text:`✨ 레어 발견! ${row.nickname}님이 레어 ${L.n} 계열을 찾았습니다!`}); } catch (e) {}
-        say_(st,out,`레어 발견! 부지깽이가 「${L.names[0]}」(으)로 변했습니다. ${L.n} 계열은 레어 판매가로 팔리고, 결투장에서 +1 보정을 받습니다.`,'gold'); feed_(`${row.nickname}님이 레어 ${L.n} 계열을 발견했습니다!`); out.fx='hidden'; }
-      else say_(st,out,`부지깽이의 정체가 드러났습니다. ${L.n} 계열 「${L.names[0]}」입니다.`,'ok');
+      if (L.h) { const g = gradeOf(st.line), GN = GRADES[g].n, EM = ['', '💎', '🔮', '🌟'][g] || '✨';
+        try { chatPush_({sys:true, nick:'대장간', text:`${EM} ${GN} 발견! ${row.nickname}님이 ${GN} ${L.n} 계열을 찾았습니다!`}); } catch (e) {}
+        const ef = (L.e && typeof EFFECTS !== 'undefined' && EFFECTS[L.e]) ? ` 특수 효과: ${EFFECTS[L.e]}.` : '';
+        say_(st,out,`${GN} 발견! 부지깽이가 「${L.names[0]}」(으)로 변했습니다. ${L.n} 계열은 ${GN} 판매가로 팔리고, 결투장에서 +${GRADES[g].bonus} 보정을 받습니다.${ef}`,'gold'); feed_(`${row.nickname}님이 ${GN} ${L.n} 계열을 발견했습니다!`); out.fx='hidden'; out.reveal = g;
+        if (g >= 2) { try { livePush_({type:'reveal', id:row.id, nick:row.nickname, mark:markOf_(st), grade:g, line:st.line, lineName:L.n, name:L.names[0], at:Date.now()}); } catch (e) {} } }
+      else { say_(st,out,`부지깽이의 정체가 드러났습니다. 일반 ${L.n} 계열 「${L.names[0]}」입니다.`,'ok'); out.reveal = 0; }
     }
     st.lv++; st.ok++;
     if ((eff === 'jump' && Math.random() < 0.08) || (eff === 'chaos' && Math.random() < 0.2)) { if (st.lv < MAX) { st.lv++; say_(st,out,`✨ ${eff === 'jump' ? '달토끼가 방아를 한 번 더 찧었다' : '혼돈이 날뛰었다'}! 한 번에 두 단계가 올랐습니다.`,'gold'); out.jump = true; } }

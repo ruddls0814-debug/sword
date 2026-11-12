@@ -1721,7 +1721,7 @@ async function openHunt(){if(META&&!META.dungeons){try{const m=await call("boots
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794449974;
+const BUILD=1794453335;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
@@ -2282,6 +2282,107 @@ const _setArtU=setArt;setArt=function(el,line,lv){if(!el||el.id!=="art"||line==n
 placeTap=function(){const a=document.querySelector(".actions"),g=$("tapGame");if(!g)return;const fixed=a&&getComputedStyle(a).position==="fixed";
   if(fixed){const top=a.getBoundingClientRect().top;g.style.bottom=Math.max(10,innerHeight-top+10)+"px"}else{const n=document.querySelector(".navbar");g.style.bottom=((n?n.offsetHeight:0)+24)+"px"}};
 const _startTapU=startTap;startTap=function(){document.body.classList.remove("noact");return _startTapU.apply(this,arguments)};
+if(ST&&META)render();
+</script>
+<script>// ════ 등급별 등장 연출: 일반 · 레어 · 유니크 · 에픽 ════
+// 1) 검 위 등급 배지 + 등급별 상시 후광  2) 처음 정체가 드러날 때 등급별 연출  3) 다른 사람이 유니크·에픽을 찾으면 알림
+const RV={
+  names:["일반","레어","유니크","에픽"],en:["COMMON","RARE","UNIQUE","EPIC"],em:["⚒️","💎","🔮","🌟"],
+  col:["#b9aa9a","#5fb4ff","#c58cff","#ffb03a"],
+  auto:[0,2800,4200,0],
+  quip:[[],
+    ["어?! 이건… 레어잖아! 역시 내 손을 거치면 뭔가 튀어나와.","레어 발견! 파란 빛 보이지? 그게 내 실력의 색이야.","{name}! 레어다. 오늘 밤 일기장에 쓸 거야. '나, 또 해냄.'"],
+    ["보랏빛이 돈다… 유니크다. 이 정도면 내 전기에 한 챕터 들어간다.","유니크! {name}… 손이 떨린다. 아니, 원래 떨렸나?","이건 아무나 못 만들어. 나니까 만들었지. 유니크라고, 유니크!"],
+    ["에, 에픽이다!!! 망치 내려놔. 아니, 내가 내려놓을게. 사진 찍자!","황금빛… 에픽이야. 오늘 대장간 문 닫고 잔치한다!","평생 한 번 볼까 말까 한 에픽이다. 너 전생에 나라를 구했냐?"]]
+};
+(function css(){const s=document.createElement("style");s.textContent=`
+.gbadge{display:table;margin:0 auto 6px;padding:3px 12px;border-radius:99px;border:1.5px solid var(--gc);color:var(--gc);background:color-mix(in srgb,var(--gc) 14%,transparent);font:800 12.5px var(--f-body);letter-spacing:.06em;white-space:nowrap}
+.gbadge.g0{opacity:.75;font-weight:700}
+.gbadge.g2{box-shadow:0 0 12px color-mix(in srgb,var(--gc) 45%,transparent)}
+.gbadge.g3{color:#2a1606;border-color:#ffd27a;background:linear-gradient(100deg,#ffb03a,#ffe9a8 40%,#ffb03a 60%,#ff8a3a);background-size:220% 100%;animation:gshine 2.6s linear infinite;box-shadow:0 0 16px rgba(255,176,58,.6)}
+@keyframes gshine{to{background-position:-220% 0}}
+.grays{position:absolute;left:0;right:0;margin:0 auto;top:calc(var(--sz,200px)*-.12);width:calc(var(--sz,200px)*1.3);aspect-ratio:1;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .5s}
+.grays.g1{opacity:.6;background:radial-gradient(circle,rgba(95,180,255,.42),rgba(95,180,255,0) 64%);animation:gpulse 2.6s ease-in-out infinite}
+.grays.g2{opacity:.75;background:conic-gradient(from 0deg,rgba(197,140,255,0),rgba(197,140,255,.55) 8%,rgba(197,140,255,0) 17%,rgba(197,140,255,.45) 33%,rgba(197,140,255,0) 42%,rgba(197,140,255,.55) 58%,rgba(197,140,255,0) 67%,rgba(197,140,255,.45) 83%,rgba(197,140,255,0) 92%);-webkit-mask:radial-gradient(circle,#000 18%,transparent 66%);mask:radial-gradient(circle,#000 18%,transparent 66%);animation:gspin 10s linear infinite}
+.grays.g3{opacity:.95;background:repeating-conic-gradient(from 0deg,rgba(255,200,90,.6) 0 7deg,rgba(255,176,58,0) 7deg 20deg);-webkit-mask:radial-gradient(circle,#000 16%,transparent 68%);mask:radial-gradient(circle,#000 16%,transparent 68%);animation:gspin 16s linear infinite}
+.grays.g3::after{content:"";position:absolute;inset:18%;border-radius:50%;background:radial-gradient(circle,rgba(255,230,160,.55),rgba(255,176,58,0) 70%);animation:gpulse 1.8s ease-in-out infinite}
+@keyframes gspin{to{transform:rotate(360deg)}}
+@keyframes gpulse{50%{transform:scale(1.1);filter:brightness(1.25)}}
+.rvl{position:fixed;inset:0;z-index:70;display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px));background:radial-gradient(circle at 50% 45%,color-mix(in srgb,var(--gc) 26%,rgba(8,5,4,.86)),rgba(8,5,4,.94) 70%);overflow:hidden;cursor:pointer;animation:rvIn .35s ease-out}
+.rvl[hidden]{display:none}
+@keyframes rvIn{from{opacity:0}}
+.rvl .rays{position:absolute;left:50%;top:46%;width:180vmax;height:180vmax;margin:-90vmax 0 0 -90vmax;pointer-events:none;background:repeating-conic-gradient(from 0deg,color-mix(in srgb,var(--gc) 32%,transparent) 0 6deg,transparent 6deg 18deg);-webkit-mask:radial-gradient(circle,#000 0,transparent 42%);mask:radial-gradient(circle,#000 0,transparent 42%);animation:gspin 18s linear infinite}
+.rvl.g1 .rays{opacity:.55}.rvl.g3 .rays{animation-duration:9s}
+.rvl .card{position:relative;display:grid;justify-items:center;gap:6px;text-align:center;max-width:340px;width:100%}
+.rvl .tag{font:900 13px var(--f-body);letter-spacing:.42em;color:var(--gc);text-shadow:0 0 14px var(--gc);padding-left:.42em}
+.rvl .ko{font:900 clamp(30px,9vw,42px)/1.1 var(--f-display);color:#fff;text-shadow:0 0 18px var(--gc),0 2px 0 rgba(0,0,0,.4);animation:rvPop .5s cubic-bezier(.2,1.6,.4,1)}
+.rvl.g3 .ko{background:linear-gradient(100deg,#ffb03a,#fff3c4 40%,#ffb03a 60%,#ff7a2f);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:rvPop .6s cubic-bezier(.2,1.6,.4,1),gshine 2.2s linear infinite}
+@keyframes rvPop{from{transform:scale(.4);opacity:0}}
+.rvl .art{width:min(220px,58vw);aspect-ratio:1;background-repeat:no-repeat;background-size:500% 400%;background-position:0 0;filter:drop-shadow(0 0 18px var(--gc)) drop-shadow(0 0 4px var(--gc));animation:rvRise .7s cubic-bezier(.2,1.3,.4,1) both .1s}
+@keyframes rvRise{from{transform:translateY(30px) scale(.7);opacity:0}}
+.rvl .nm{font:800 19px var(--f-body);color:var(--bone)}
+.rvl .ln{font-size:13.5px;color:var(--dim);line-height:1.55}
+.rvl .ef{font-size:13.5px;line-height:1.55;color:var(--gc);border:1px solid color-mix(in srgb,var(--gc) 55%,transparent);border-radius:12px;padding:8px 12px;background:color-mix(in srgb,var(--gc) 10%,transparent)}
+.rvl .tp{margin-top:6px;font-size:12px;color:var(--dim)}
+.rvl .cf{position:absolute;top:-6vh;width:9px;height:14px;border-radius:2px;pointer-events:none;animation:rvFall linear forwards}
+@keyframes rvFall{to{transform:translateY(115vh) rotate(720deg)}}
+.rvflash{position:fixed;inset:0;z-index:71;background:#fff;pointer-events:none;animation:rvFlash .55s ease-out forwards}
+@keyframes rvFlash{from{opacity:.95}to{opacity:0}}
+.rvcharge{position:fixed;inset:0;z-index:69;pointer-events:none;background:radial-gradient(circle at 50% 40%,rgba(255,176,58,.18),rgba(0,0,0,.82) 60%);animation:rvIn .3s ease-out}
+body.rvshake .stage{animation:rvShake .09s linear infinite}
+@keyframes rvShake{25%{transform:translate(2px,-1px)}50%{transform:translate(-2px,1px)}75%{transform:translate(1px,2px)}}
+#highbar.rv{border-color:var(--gc)!important;box-shadow:0 0 0 1px var(--gc),0 10px 30px color-mix(in srgb,var(--gc) 35%,transparent)}
+@media (prefers-reduced-motion:reduce){.grays,.grays.g3::after,.rvl .rays,.gbadge.g3,.rvl.g3 .ko{animation:none}.rvl .cf{display:none}body.rvshake .stage{animation:none}}`;document.head.append(s)})();
+
+// 1) 등급 배지 + 상시 후광
+(function mount(){const lvl=$("lvl");if(lvl&&!$("gbadge")){const b=document.createElement("div");b.id="gbadge";b.className="gbadge";b.hidden=true;lvl.before(b)}
+  const st=document.querySelector(".stage");if(st&&!st.querySelector(".grays")){const r=document.createElement("div");r.className="grays";r.setAttribute("aria-hidden","true");st.prepend(r)}})();
+function paintGrade(){const b=$("gbadge"),r=document.querySelector(".stage .grays");if(!b||!ST)return;
+  const has=ST.line!=null&&ST.lv>0,g=has?(ST.grade||0):-1;
+  b.hidden=!has;if(has){b.className="gbadge g"+g;b.style.setProperty("--gc",RV.col[g]);b.textContent=RV.em[g]+" "+RV.names[g]+(g?" 등급":"")}
+  if(r)r.className="grays"+(g>0?" g"+g:"")}
+const _renderRv=render;render=function(){const x=_renderRv.apply(this,arguments);try{paintGrade()}catch(e){}return x};
+
+// 2) 처음 정체가 드러날 때
+function rvSound(g){if(!SOUND)return;try{
+  if(g===1){sfx("success",4);[1568,2093].forEach((f,i)=>tone(f,.32+i*.09,.3,"sine",.07))}
+  else if(g===2){sfx("success",5);[784,988,1175,1568,1976].forEach((f,i)=>tone(f,.4+i*.08,.5,"triangle",.07));tone(392,.4,1.1,"sine",.12)}
+  else if(g===3){[[523,659,784],[587,740,880],[659,831,988,1319]].forEach((ch,k)=>ch.forEach(f=>tone(f,k*.22,k===2?1.3:.25,"triangle",.09)));[1319,1568,2093,2637].forEach((f,i)=>tone(f,.7+i*.07,.5,"sine",.06));tone(131,0,1.4,"sine",.2)}
+}catch(e){}}
+function rvConfetti(box,n){const C=["#ffb03a","#ffe9a8","#ff7a2f","#fff","#c58cff","#5fb4ff"];for(let i=0;i<n;i++){const s=document.createElement("i");s.className="cf";s.style.left=Math.random()*100+"%";s.style.background=C[i%C.length];s.style.animationDuration=(2.2+Math.random()*2)+"s";s.style.animationDelay=(Math.random()*.8)+"s";s.style.transform=`rotate(${Math.random()*360}deg)`;box.append(s)}}
+function showReveal(g,line,lv,name){
+  const L=(META.lines||[])[line]||{},G=(META.grades||[])[g]||{bonus:g},eff=L.e&&META.effects?META.effects[L.e]:"";
+  const o=document.createElement("div");o.className="rvl g"+g;o.style.setProperty("--gc",RV.col[g]);o.setAttribute("role","dialog");o.setAttribute("aria-label",RV.names[g]+" 발견");
+  const rays=document.createElement("div");rays.className="rays";const c=document.createElement("div");c.className="card";
+  const t=document.createElement("div");t.className="tag";t.textContent=RV.en[g];
+  const ko=document.createElement("div");ko.className="ko";ko.textContent=RV.names[g]+" 발견!";
+  const a=document.createElement("div");a.className="art";a.style.backgroundImage=`url(sprites_cut/${line}.webp?v=1)`;a.style.backgroundPosition=`${(Math.max(0,lv-1)%5)*25}% ${Math.floor(Math.max(0,lv-1)/5)*(100/3)}%`;
+  const nm=document.createElement("div");nm.className="nm";nm.textContent=`+${lv} ${name}`;
+  const ln=document.createElement("div");ln.className="ln";ln.textContent=`${L.n||""} 계열 · 결투장 +${G.bonus||g} 보정 · ${RV.names[g]} 판매가`;
+  c.append(t,ko,a,nm,ln);if(eff){const e=document.createElement("div");e.className="ef";e.textContent="✨ 특수 효과: "+eff;c.append(e)}
+  const tp=document.createElement("div");tp.className="tp";tp.textContent="화면을 누르면 닫혀요";c.append(tp);
+  o.append(rays,c);if(g===3)rvConfetti(o,46);else if(g===2)rvConfetti(o,18);
+  const close=()=>{if(!o.isConnected)return;o.remove();clearTimeout(o._t)};o.onclick=close;
+  document.addEventListener("keydown",function k(ev){if(ev.key==="Escape"||ev.key==="Enter"||ev.key===" "){close();document.removeEventListener("keydown",k)}});
+  document.body.append(o);if(RV.auto[g])o._t=setTimeout(close,RV.auto[g]);else o._t=setTimeout(close,9000);
+  rvSound(g);try{if(navigator.vibrate)navigator.vibrate(g===3?[60,40,60,40,220]:g===2?[40,50,40,50,90]:[30,40,40])}catch(e){}
+  try{const tc=RV.col[g];fxSuccess(g===3?5:g===2?5:4,tc,true);if(g>=2)setTimeout(()=>fxSuccess(5,tc,true),450);if(g===3)setTimeout(()=>fxSuccess(5,"#fff3c4",true),900)}catch(e){}}
+function revealGrade(g){const line=ST.line,lv=ST.lv,name=ST.name;
+  if(!g){try{result(`정체 공개! 일반 · ${ST.lineName||""} 계열`,RV.col[0],"pop")}catch(e){}return}
+  try{result(`${RV.em[g]} ${RV.names[g]} 발견! +${lv}`,RV.col[g],"pop");const q=RV.quip[g];say(q[Math.floor(Math.random()*q.length)].replace("{name}",name))}catch(e){}
+  if(g===3){const ch=document.createElement("div");ch.className="rvcharge";document.body.append(ch);document.body.classList.add("rvshake");try{if(SOUND)sfx("drum")}catch(e){}
+    setTimeout(()=>{ch.remove();document.body.classList.remove("rvshake");const f=document.createElement("div");f.className="rvflash";document.body.append(f);setTimeout(()=>f.remove(),600);showReveal(g,line,lv,name)},1100)}
+  else showReveal(g,line,lv,name)}
+const _fxRv=fx;fx=function(kind,before){const x=_fxRv.apply(this,arguments);
+  try{if(ST&&ST.line!=null&&ST.lv>=1&&before===0&&(kind==="hidden"||kind==="success"))revealGrade(ST.grade||0)}catch(e){}return x};
+
+// 3) 다른 사람이 유니크·에픽을 찾았을 때 (서버 live 'reveal')
+const _showLiveRv=showLive;showLive=function(e){if(e&&e.type==="reveal"){if(ST&&e.id===ST.id)return;const g=e.grade||2;
+  try{const hb=$("highbar");hb.classList.add("rv");hb.style.setProperty("--gc",RV.col[g]);$("highTitle").textContent=`${RV.em[g]} ${RV.names[g]} 발견!`;$("highText").textContent=`${nk(e.nick,e.mark)}님이 ${RV.names[g]} ${e.lineName} 계열을 찾았습니다!`;
+    const a=$("highArt");if(e.line!=null)setArt(a,e.line,1);hb.hidden=false;clearTimeout(showHigh.h);showHigh.h=setTimeout(()=>{hb.hidden=true;hb.classList.remove("rv")},7000);
+    fxSuccess(g===3?5:4,RV.col[g],true);if(SOUND)sfx("success",g===3?5:4)}catch(x){}return}
+  if(e&&e.type==="high"){const hb=$("highbar");if(hb)hb.classList.remove("rv")}
+  return _showLiveRv.apply(this,arguments)};
 if(ST&&META)render();
 </script>
 </body>
