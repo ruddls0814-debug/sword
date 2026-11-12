@@ -1445,6 +1445,7 @@ function hcDeco(){const R=hcRand(HC.dun*97+13),w=HC.w,h=HC.h,st=[],bk=[],mo=[];
   HC.deco={st,bk,mo}}
 function hcColor(){const c=getComputedStyle($("hScene"));return{rock:(c.getPropertyValue("--rock")||"#8d939b").trim(),bone:(c.getPropertyValue("--bone")||"#f1e6d6").trim()}}
 // 검 그림 준비 (배경을 지운 스프라이트 시트에서 한 칸)
+function hcSkin(){return {band:"#d8452f",head:"#1a1512"}}
 function hcSetSword(){if(ST&&ST.line!=null&&ST.lv>0){const src=`sprites_cut/${ST.line}.webp?v=1`;HC.cell=Math.max(0,Math.min(19,ST.lv-1));
     if(HC.imgSrc!==src){HC.imgSrc=src;const im=new Image();im.onload=()=>{if(HC.imgSrc===src)HC.img=im;hcDrawOnce()};im.src=src;HC.img=null}}
   else{HC.imgSrc="";HC.img=null;HC.cell=-1}}
@@ -1533,7 +1534,7 @@ function hcDraw(){const c=HC.ctx,w=HC.w,h=HC.h,col=hcColor(),g=hcGround();c.setT
   if(t>.43&&t<.56)HC.trail.push([r.grip[0],r.grip[1],r.tip[0],r.tip[1]]);else if(t<.43||t>.62)HC.trail=[];else if(HC.trail.length)HC.trail.shift();
   if(HC.trail.length>5)HC.trail.shift();
   if(HC.trail.length>1){for(let i=1;i<HC.trail.length;i++){const a=HC.trail[i-1],b=HC.trail[i],al=i/HC.trail.length*.22;c.fillStyle=`rgba(255,236,200,${al})`;c.beginPath();c.moveTo(a[0]+(a[2]-a[0])*.72,a[1]+(a[3]-a[1])*.72);c.lineTo(a[2],a[3]);c.lineTo(b[2],b[3]);c.lineTo(b[0]+(b[2]-b[0])*.72,b[1]+(b[3]-b[1])*.72);c.closePath();c.fill()}}
-  c.lineCap="round";c.lineJoin="round";const B=col.bone,Bd="rgba(0,0,0,.25)";
+  c.lineCap="round";c.lineJoin="round";const SK=hcSkin(),B=SK.body||col.bone,Bd="rgba(0,0,0,.25)";if(SK.back)try{SK.back(c,r,now,t)}catch(e){}
   // 뒷다리·뒷팔 (조금 어둡게)
   hcLine(c,[[r.hx,r.hy],r.kb,r.fb],6,B);c.globalAlpha=1;
   hcLine(c,[r.ch,r.ef,r.g2],5.5,B);
@@ -1546,12 +1547,13 @@ function hcDraw(){const c=HC.ctx,w=HC.w,h=HC.h,col=hcColor(),g=hcGround();c.setT
   // 머리띠 꼬리 (바람에 휘날림)
   const hd=r.head,tl=HC.scarf||(HC.scarf=[[hd[0]-12,hd[1]-4],[hd[0]-22,hd[1]-2],[hd[0]-32,hd[1]+2]]);let px=hd[0]-10,py=hd[1]-5;
   tl.forEach((p,i)=>{const tx=px-9-i*1.5,ty=py+2+Math.sin(now*9+i)*2.2;p[0]+= (tx-p[0])*.35;p[1]+=(ty-p[1])*.35;px=p[0];py=p[1]});
-  c.strokeStyle="#d8452f";c.lineWidth=4;c.beginPath();c.moveTo(hd[0]-10,hd[1]-5);tl.forEach(p=>c.lineTo(p[0],p[1]));c.stroke();
+  if(SK.band){c.strokeStyle=SK.band;c.lineWidth=4;c.beginPath();c.moveTo(hd[0]-10,hd[1]-5);tl.forEach(p=>c.lineTo(p[0],p[1]));c.stroke()}
   // 머리
-  c.fillStyle="#1a1512";c.strokeStyle=B;c.lineWidth=5.5;c.beginPath();c.arc(hd[0],hd[1],14,0,Math.PI*2);c.fill();c.stroke();
-  c.strokeStyle="#d8452f";c.lineWidth=4;c.beginPath();c.arc(hd[0],hd[1],14,Math.PI*1.08,Math.PI*1.92);c.stroke();
+  c.fillStyle=SK.head||"#1a1512";c.strokeStyle=B;c.lineWidth=5.5;c.beginPath();c.arc(hd[0],hd[1],14,0,Math.PI*2);c.fill();c.stroke();
+  if(SK.band){c.strokeStyle=SK.band;c.lineWidth=4;c.beginPath();c.arc(hd[0],hd[1],14,Math.PI*1.08,Math.PI*1.92);c.stroke()}
   // 눈 (휘두를 때는 질끈)
-  c.fillStyle=B;const fx=Math.sin(P.lean)*3;if(t>.42&&t<.62){c.fillRect(hd[0]+3+fx,hd[1]-2,5,2)}else{c.beginPath();c.arc(hd[0]+5+fx,hd[1]-1,2,0,Math.PI*2);c.fill()}
+  c.fillStyle=B;const fx=Math.sin(P.lean)*3;c.fillStyle=SK.eye||B;if(t>.42&&t<.62){c.fillRect(hd[0]+3+fx,hd[1]-2,5,2)}else{c.beginPath();c.arc(hd[0]+5+fx,hd[1]-1,2,0,Math.PI*2);c.fill()}
+  if(SK.front)try{SK.front(c,r,now,t)}catch(e){}
   // 검 → 앞팔 (손이 손잡이를 감싸게)
   hcDrawSword(c,r);
   hcDrawRock(c,col.rock);
@@ -1721,7 +1723,7 @@ async function openHunt(){if(META&&!META.dungeons){try{const m=await call("boots
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794453335;
+const BUILD=1794473279;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
@@ -2383,6 +2385,121 @@ const _showLiveRv=showLive;showLive=function(e){if(e&&e.type==="reveal"){if(ST&&
     fxSuccess(g===3?5:4,RV.col[g],true);if(SOUND)sfx("success",g===3?5:4)}catch(x){}return}
   if(e&&e.type==="high"){const hb=$("highbar");if(hb)hb.classList.remove("rv")}
   return _showLiveRv.apply(this,arguments)};
+if(ST&&META)render();
+</script>
+<script>// ════ 사냥 무기 반영 · 손 검/검집 검별 던전 표시 · 졸라맨 스킨 상점 ════
+
+// 1) 사냥 화면 졸라맨은 「사냥 무기」로 고른 검을 듭니다 (예전엔 늘 손에 든 검)
+hcSetSword=function(){const w=ST&&ST.huntW&&ST.huntW.line!=null&&ST.huntW.lv>0?ST.huntW:(ST&&ST.line!=null&&ST.lv>0?{line:ST.line,lv:ST.lv}:null);
+  if(w){const src=`sprites_cut/${w.line}.webp?v=1`;HC.cell=Math.max(0,Math.min(19,w.lv-1));
+    if(HC.imgSrc!==src){HC.imgSrc=src;const im=new Image();im.onload=()=>{if(HC.imgSrc===src)HC.img=im;hcDrawOnce()};im.src=src;HC.img=null}else hcDrawOnce()}
+  else{HC.imgSrc="";HC.img=null;HC.cell=-1}};
+
+// 2) 던전 목록: 손 검·검집 검이 각각 어디까지 들어가는지 따로 보여 줌
+(function css(){const s=document.createElement("style");s.textContent=`
+.hrow{position:relative}
+.hrow .wch{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.hrow .wch span{font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;border:1px solid currentColor;line-height:1.5;white-space:nowrap}
+.wch .on.c{color:#ff9a5a}.wch .on.s{color:#6fb8ff}.wch .off{color:var(--dim);opacity:.6;text-decoration:line-through}
+.hrow.wb::before,.hrow.wc::before,.hrow.ws::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:4px;border-radius:4px}
+.hrow.wc::before{background:#ff9a5a}.hrow.ws::before{background:#6fb8ff}.hrow.wb::before{background:linear-gradient(#ff9a5a,#6fb8ff)}
+.hrow.other{opacity:.78}.hrow.other .btn{border-color:#6fb8ff;color:#bfe0ff}
+.hrow.other.toc .btn{border-color:#ff9a5a;color:#ffd2b5}
+.seg button small b{color:var(--bone)}
+.hwhint{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--dim);margin:6px 0 2px}.hwhint i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+/* 스킨 상점 */
+.skshop{margin-bottom:14px}
+.skshop h3{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:0 0 8px;font-size:15px}.skshop h3 small{font-weight:500;color:var(--dim);font-size:12px}
+.skgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.skc{display:grid;gap:4px;justify-items:center;text-align:center;padding:10px 8px 10px;border-radius:14px;border:1px solid var(--line,rgba(255,255,255,.08));background:rgba(255,255,255,.03);min-width:0}
+.skc.wear{border-color:var(--ember);box-shadow:0 0 0 1px var(--ember) inset}
+.skc canvas{width:120px;height:120px;border-radius:10px;background:radial-gradient(circle at 50% 70%,rgba(255,140,60,.16),rgba(0,0,0,0) 70%),#1a120e}
+.skc b{font-size:14px}.skc p{margin:0;font-size:12px;color:var(--dim);line-height:1.45;min-height:3em}
+.skc .pr{font-weight:800;color:var(--gold,#ffd25e);font-size:13px}
+.skc .btn{width:100%;padding:8px 6px;font-size:13px}
+`;document.head.append(s)})();
+function weaponsLocal(){const a=[];if(ST.lv>0&&ST.line!=null)a.push({src:"cur",lv:ST.lv,name:ST.name});if(ST.sheath&&ST.sheath.lv>0)a.push({src:"sheath",lv:ST.sheath.lv,name:ST.sheath.name});return a}
+function deepest(lv){let b=-1;(META.dungeons||[]).forEach((d,i)=>{if(lv>=d[2])b=i});return b}
+const _renderHuntSk=renderHunt;renderHunt=function(){_renderHuntSk.apply(this,arguments);try{paintHuntWeapons()}catch(e){console.log(e)}};
+function paintHuntWeapons(){if(!ST||!META||!META.dungeons)return;const D=META.dungeons,h=ST.hunt||{d:-1},cur=h.d,mast=ST.mastery||[],mode=(h.w)||"auto";
+  const cl=ST.lv>0&&ST.line!=null?ST.lv:0,sl=ST.sheath?ST.sheath.lv:0,hasS=!!ST.sheath,hw=ST.huntW;
+  // 무기 버튼에 「N층까지」
+  document.querySelectorAll("#hWeapon .seg button").forEach((b,i)=>{const k=["auto","cur","sheath"][i],lv=k==="cur"?cl:k==="sheath"?sl:Math.max(cl,sl),d=deepest(lv);const sm=b.querySelector("small");if(sm&&lv>0&&!sm.querySelector("b")){sm.append(document.createElement("br"),Object.assign(document.createElement("b"),{textContent:d>=0?`${d+1}층까지`:"입장 불가"}))}});
+  const W=$("hWeapon");if(W&&!W.querySelector(".hwhint")&&hasS&&cl>0){const hn=el("div","hwhint");hn.innerHTML='<span><i style="background:#ff9a5a"></i>손 검으로 갈 수 있는 층</span><span><i style="background:#6fb8ff"></i>검집 검으로 갈 수 있는 층</span>';W.append(hn)}
+  // 지금 고른 무기(자동이면 서버가 고른 무기)
+  const selLv=mode==="cur"?cl:mode==="sheath"?sl:Math.max(cl,sl),selSrc=mode==="auto"?(hw?hw.src:null):mode;
+  const L=$("hList");L.innerHTML="";
+  D.forEach((d,i)=>{const okC=cl>=d[2],okS=hasS&&sl>=d[2],okSel=selLv>=d[2];
+    const row=el("div","hrow"+(i===cur?" cur":"")+(okC&&okS?" wb":okC?" wc":okS?" ws":" lock")+(!okSel&&(okC||okS)?" other"+(okC?" toc":""):""));
+    const nm=el("div","nm");nm.append(el("b",null,d[0]),el("small",null,`+${d[2]} 이상 · ${d[1]} · 시간당 ${fmt(d[3])} G${mast[i]?` · 숙련 +${mast[i]}%`:""}`));
+    const ch=el("div","wch");if(cl>0||!hasS)ch.append(el("span",okC?"on c":"off",`🗡 손 +${cl}`));if(hasS)ch.append(el("span",okS?"on s":"off",`🛡 검집 +${sl}`));nm.append(ch);
+    const bt=el("button","btn");bt.type="button";
+    if(i===cur){bt.textContent="멈추기";bt.onclick=()=>act("huntStop")}
+    else if(okSel){bt.textContent="입장";bt.onclick=()=>act("huntSet",{d:i})}
+    else if(okC||okS){const w=okS&&!okC?"sheath":okC&&!okS?"cur":(selSrc==="cur"?"sheath":"cur");bt.textContent=w==="sheath"?"검집 검으로 입장":"손 검으로 입장";bt.onclick=()=>act("huntSet",{d:i,w})}
+    else{bt.textContent=`+${d[2]} 필요`;bt.disabled=true}
+    row.append(el("div","fl",(i+1)+"층"),nm,bt);L.append(row)});
+  hcSetSword()}
+
+// 3) 졸라맨 스킨
+const SKIN_LOOK={
+  basic:{band:"#d8452f",head:"#1a1512"},
+  ninja:{body:"#aab3c5",band:"#22232b",head:"#121318",eye:"#e9f6ff",
+    front(c,r){const h=r.head;c.fillStyle="#22232b";c.fillRect(h[0]-15,h[1]-4,30,9);c.fillStyle="#e9f6ff";c.fillRect(h[0]+2,h[1]-1,8,2.5)}},
+  pirate:{band:"#b3262b",head:"#1a1512",
+    front(c,r){const h=r.head;c.save();c.translate(h[0],h[1]-12);c.fillStyle="#17120f";c.beginPath();c.moveTo(-20,2);c.quadraticCurveTo(0,-16,20,2);c.quadraticCurveTo(0,-4,-20,2);c.fill();c.fillRect(-11,-8,22,8);
+      c.fillStyle="#f1e6d6";c.beginPath();c.arc(0,-4,2.6,0,7);c.fill();c.strokeStyle="#c9a227";c.lineWidth=1.5;c.beginPath();c.moveTo(-18,1);c.quadraticCurveTo(0,-5,18,1);c.stroke();c.restore();
+      c.strokeStyle="#17120f";c.lineWidth=2;c.beginPath();c.moveTo(h[0]-12,h[1]-9);c.lineTo(h[0]+12,h[1]+3);c.stroke();c.fillStyle="#17120f";c.beginPath();c.ellipse(h[0]+6,h[1]-1,4.5,3.5,0,0,7);c.fill()}},
+  knight:{body:"#d5dce4",band:null,head:"#8d97a3",eye:"#1b1f24",
+    back(c,r,now){const ch=r.ch,sw=Math.sin(now*4)*4;c.fillStyle="#2f5fa8";c.beginPath();c.moveTo(ch[0]-4,ch[1]+2);c.quadraticCurveTo(ch[0]-30,ch[1]+30,ch[0]-36+sw,ch[1]+52);c.lineTo(ch[0]-8,ch[1]+44);c.closePath();c.fill()},
+    front(c,r){const h=r.head;c.strokeStyle="#5d6772";c.lineWidth=2;c.beginPath();c.moveTo(h[0]-2,h[1]-1);c.lineTo(h[0]+13,h[1]-1);c.stroke();
+      c.fillStyle="#c8302b";c.beginPath();c.moveTo(h[0]-4,h[1]-13);c.quadraticCurveTo(h[0]-22,h[1]-30,h[0]-26,h[1]-14);c.quadraticCurveTo(h[0]-14,h[1]-20,h[0]-4,h[1]-13);c.fill()}},
+  wizard:{body:"#efe4d2",band:null,head:"#1a1512",
+    back(c,r,now){const ch=r.ch,sw=Math.sin(now*3.4)*5;c.fillStyle="#5b2d91";c.beginPath();c.moveTo(ch[0]-3,ch[1]+1);c.quadraticCurveTo(ch[0]-28,ch[1]+28,ch[0]-34+sw,ch[1]+56);c.lineTo(ch[0]-6,ch[1]+48);c.closePath();c.fill()},
+    front(c,r,now){const h=r.head;c.save();c.translate(h[0],h[1]-10);c.rotate(-.18);c.fillStyle="#5b2d91";c.beginPath();c.moveTo(-18,2);c.lineTo(18,2);c.lineTo(4,-34);c.closePath();c.fill();
+      c.fillStyle="#ffe17a";[[-3,-8],[5,-18],[-6,-2],[2,-26]].forEach(([x,y],i)=>{const s=1.6+Math.sin(now*5+i)*.6;c.beginPath();c.arc(x,y,s,0,7);c.fill()});c.fillStyle="#3c1d63";c.fillRect(-19,0,38,4);c.restore()}},
+  flame:{body:"#ffb36b",band:"#ff5a1f",head:"#3a1408",eye:"#fff2c2",
+    back(c,r,now){const h=r.head;for(let i=0;i<6;i++){const k=(now*1.6+i/6)%1,x=h[0]-6+Math.sin(i*2.1+now*3)*8,y=h[1]-14-k*30;c.fillStyle=`rgba(255,${120+Math.round(100*(1-k))},40,${.75*(1-k)})`;c.beginPath();c.arc(x,y,7*(1-k)+2,0,7);c.fill()}}},
+  gold:{body:"#ffd34d",band:"#fff4c4",head:"#7a5410",eye:"#fff4c4",
+    back(c,r,now){const ch=r.ch,g=c.createRadialGradient(ch[0],ch[1],4,ch[0],ch[1],70);g.addColorStop(0,`rgba(255,215,90,${.28+Math.sin(now*3)*.08})`);g.addColorStop(1,"rgba(255,215,90,0)");c.fillStyle=g;c.beginPath();c.arc(ch[0],ch[1],70,0,7);c.fill()},
+    front(c,r){const h=r.head;c.fillStyle="#ffd34d";c.strokeStyle="#a8761d";c.lineWidth=1.5;c.beginPath();c.moveTo(h[0]-11,h[1]-12);c.lineTo(h[0]-11,h[1]-22);c.lineTo(h[0]-5,h[1]-16);c.lineTo(h[0],h[1]-25);c.lineTo(h[0]+5,h[1]-16);c.lineTo(h[0]+11,h[1]-22);c.lineTo(h[0]+11,h[1]-12);c.closePath();c.fill();c.stroke();
+      c.fillStyle="#e2343a";c.beginPath();c.arc(h[0],h[1]-15,2,0,7);c.fill()}},
+  shadow:{body:"#b892ff",band:"#6c2bd9",head:"#140a26",eye:"#f2e6ff",
+    back(c,r,now){const ch=r.ch,sw=Math.sin(now*3)*6;c.fillStyle="rgba(40,14,80,.92)";c.beginPath();c.moveTo(ch[0]-3,ch[1]);c.quadraticCurveTo(ch[0]-34,ch[1]+24,ch[0]-42+sw,ch[1]+60);c.lineTo(ch[0]-4,ch[1]+50);c.closePath();c.fill();
+      for(let i=0;i<5;i++){const k=(now*.8+i/5)%1;c.fillStyle=`rgba(170,110,255,${.45*(1-k)})`;c.beginPath();c.arc(ch[0]-20+i*10,ch[1]+60-k*70,3*(1-k)+1,0,7);c.fill()}},
+    front(c,r,now){const h=r.head;c.shadowColor="#c69bff";c.shadowBlur=10;c.fillStyle="#f2e6ff";c.beginPath();c.arc(h[0]+6,h[1]-1,2.6,0,7);c.fill();c.shadowBlur=0}}};
+hcSkin=function(){const k=(ST&&ST.skin)||"basic";return SKIN_LOOK[k]||SKIN_LOOK.basic};
+// 상점 미리보기 (가만히 선 자세)
+function skinPreview(cv,k){const d=2,W=120,H=120;cv.width=W*d;cv.height=H*d;const c=cv.getContext("2d");c.setTransform(d,0,0,d,0,0);
+  const saveW=HC.w,saveH=HC.h;HC.w=150;HC.h=180;const r=hcRig({sa:-1.05,lean:.04,cr:.12,rise:0});HC.w=saveW;HC.h=saveH;
+  c.clearRect(0,0,W,H);c.scale(.68,.68);c.translate(-8,20);const L=SKIN_LOOK[k]||SKIN_LOOK.basic,B=L.body||"#f1e6d6",now=performance.now()/1000;
+  c.lineCap="round";c.lineJoin="round";if(L.back)L.back(c,r,now,-1);
+  hcLine(c,[[r.hx,r.hy],r.kb,r.fb],6,B);hcLine(c,[r.ch,r.ef,r.g2],5.5,B);hcLine(c,[[r.hx,r.hy],r.ch],6.5,B);hcLine(c,[[r.hx,r.hy],r.kf,r.ff],6,B);
+  const hd=r.head;if(L.band){c.strokeStyle=L.band;c.lineWidth=4;c.beginPath();c.moveTo(hd[0]-10,hd[1]-5);c.lineTo(hd[0]-20,hd[1]-2);c.lineTo(hd[0]-30,hd[1]+2);c.stroke()}
+  c.fillStyle=L.head||"#1a1512";c.strokeStyle=B;c.lineWidth=5.5;c.beginPath();c.arc(hd[0],hd[1],14,0,Math.PI*2);c.fill();c.stroke();
+  if(L.band){c.strokeStyle=L.band;c.lineWidth=4;c.beginPath();c.arc(hd[0],hd[1],14,Math.PI*1.08,Math.PI*1.92);c.stroke()}
+  c.fillStyle=L.eye||B;c.beginPath();c.arc(hd[0]+5,hd[1]-1,2,0,Math.PI*2);c.fill();if(L.front)L.front(c,r,now,-1);
+  c.save();c.translate(r.grip[0],r.grip[1]);c.rotate(r.sa);c.strokeStyle="#cfd6df";c.lineWidth=4;c.beginPath();c.moveTo(0,0);c.lineTo(46,0);c.stroke();c.strokeStyle="#8a5a33";c.lineWidth=5;c.beginPath();c.moveTo(-6,0);c.lineTo(4,0);c.stroke();c.restore();
+  hcLine(c,[r.ch,r.eb,r.grip],5.5,B)}
+let SKKEY="";
+function renderSkinShop(){const pane=$("p-shop");if(!pane||!META||!META.skins)return;let box=$("skShop");
+  if(!box){box=el("div","skshop");box.id="skShop";pane.prepend(box)}
+  const own=new Set((ST&&ST.skins)||["basic"]);own.add("basic");const wear=(ST&&ST.skin)||"basic";
+  const key=[...own].join(",")+"|"+wear+"|"+META.skins.map(s=>ST&&ST.gold>=s.p?1:0).join("");if(key===SKKEY&&box.childElementCount)return;SKKEY=key;
+  box.innerHTML="";const h=el("h3");h.append(document.createTextNode("🎽 졸라맨 스킨"),el("small",null,"사냥 화면 졸라맨의 모습이 바뀝니다"));box.append(h);
+  const g=el("div","skgrid");META.skins.forEach(s=>{const c=el("div","skc"+(s.k===wear?" wear":""));const cv=document.createElement("canvas");cv.dataset.sk=s.k;cv.setAttribute("aria-hidden","true");
+    c.append(cv,el("b",null,s.n),el("p",null,s.d),el("div","pr",s.p?fmt(s.p)+" G":"기본"));
+    const bt=el("button","btn");bt.type="button";
+    if(s.k===wear){bt.textContent="입는 중";bt.disabled=true}
+    else if(own.has(s.k)){bt.textContent="입기";bt.onclick=()=>act("skinWear",{k:s.k})}
+    else{bt.textContent="사기";bt.classList.add("primary");bt.disabled=(ST&&ST.gold<s.p);if(bt.disabled)bt.textContent=`골드 부족`;
+      bt.onclick=()=>{if(confirmBuy(bt,s))act("skinBuy",{k:s.k})}}
+    c.append(bt);g.append(c);skinPreview(cv,s.k)});box.append(g)}
+// 한 번 더 눌러야 사기 (실수 방지)
+function confirmBuy(bt,s){if(bt.dataset.ok==="1")return true;bt.dataset.ok="1";bt.textContent=`${fmt(s.p)} G 결제하려면 한 번 더`;setTimeout(()=>{if(bt.isConnected){bt.dataset.ok="";bt.textContent="사기"}},3500);return false}
+// 움직이는 미리보기: 상점이 열려 있을 때만
+setInterval(()=>{const p=$("p-shop");if(!p||p.hidden||document.visibilityState!=="visible")return;document.querySelectorAll("#skShop canvas[data-sk]").forEach(cv=>{const k=cv.dataset.sk,L=SKIN_LOOK[k];if(L&&(L.back||L.front))skinPreview(cv,k)})},120);
+const _renderSk=render;render=function(){const x=_renderSk.apply(this,arguments);try{renderSkinShop()}catch(e){console.log(e)}return x};
 if(ST&&META)render();
 </script>
 </body>

@@ -462,7 +462,7 @@ function say_(st, out, text, kind) {
 function api(action, req) {
   req = req || {}; HCTX = null; RR_ACTOR = null;
   try {
-    if (action === 'bootstrap') return {ok:true, mats:MATS, bosses:BOSSES.map((n,i)=>({n, lv:bossLv(i)})), bossPerDay:BOSS_PER_DAY, effects:EFFECTS, drop:dropRates_(), seasonReward:SEASON_REWARD, seasonPts:SEASON_PTS, rr:{start:RR_START, turnMs:RR_TURN_MS, max:RR_MAX, minBet:RR_MIN_BET}, mastery:{stepH:MASTERY_STEP_H, max:MASTERY_MAX}, tapBonus:TAP_BONUS, gift:{min:GIFT_MIN, fee:GIFT_FEE, perDay:GIFT_PER_DAY, dayMax:GIFT_DAY_MAX, ageH:GIFT_AGE_H}, dungeons:DUNGEONS, huntCapH:HUNT_CAP_H, buffs:BUFFS.map(b=>({key:b[0],name:b[1],n:b[2],desc:b[4]})), guardMax:GUARD_MAX, types:TYPE_OF, beats:BEATS, protectMax:PROTECT_MAX, grades:GRADES, upcoming:UPCOMING, achs:ACHS, lines:LINES.map(l=>({n:l.n,h:l.h,g:l.g,e:l.e||'',t:TYPE_OF[l.n]||'',names:l.names,desc:DESC[l.n]||[]})), baseDesc:BASE_DESC, odds:ODDS, base:BASE, max:MAX, url:(function(){try{return ScriptApp.getService().getUrl()}catch(e){return ''}})()};
+    if (action === 'bootstrap') return {ok:true, mats:MATS, bosses:BOSSES.map((n,i)=>({n, lv:bossLv(i)})), bossPerDay:BOSS_PER_DAY, effects:EFFECTS, skins:SKINS, drop:dropRates_(), seasonReward:SEASON_REWARD, seasonPts:SEASON_PTS, rr:{start:RR_START, turnMs:RR_TURN_MS, max:RR_MAX, minBet:RR_MIN_BET}, mastery:{stepH:MASTERY_STEP_H, max:MASTERY_MAX}, tapBonus:TAP_BONUS, gift:{min:GIFT_MIN, fee:GIFT_FEE, perDay:GIFT_PER_DAY, dayMax:GIFT_DAY_MAX, ageH:GIFT_AGE_H}, dungeons:DUNGEONS, huntCapH:HUNT_CAP_H, buffs:BUFFS.map(b=>({key:b[0],name:b[1],n:b[2],desc:b[4]})), guardMax:GUARD_MAX, types:TYPE_OF, beats:BEATS, protectMax:PROTECT_MAX, grades:GRADES, upcoming:UPCOMING, achs:ACHS, lines:LINES.map(l=>({n:l.n,h:l.h,g:l.g,e:l.e||'',t:TYPE_OF[l.n]||'',names:l.names,desc:DESC[l.n]||[]})), baseDesc:BASE_DESC, odds:ODDS, base:BASE, max:MAX, url:(function(){try{return ScriptApp.getService().getUrl()}catch(e){return ''}})()};
     if (action === 'register') return register_(req);
     if (action === 'login') return login_(req);
     if (action === 'board') return board_(req);
@@ -519,7 +519,7 @@ function api(action, req) {
       const st = migrate_(Object.assign(fresh_(), JSON.parse(row.state||'{}')));
       const out = {msgs:[], fx:null}; RR_ACTOR = {id:row.id, st, out};
       HCTX = {act:action, actorId:row.id, actorNick:row.nickname}; markOnline_(row.id);
-    const fn = {me:()=>{}, setBadge:setBadge_, sheathSwap:sheathSwap_, sheathSell:sheathSell_, huntWeapon:huntWeaponSet_, huntBoss:huntBoss_, rr:rr_, yachaAsk:yachaAsk_, yachaAnswer:yachaAnswer_, yachaCancel:yachaCancel_, enhance:enhance_, sell:sell_, buyScroll:buyScroll_, aid:aid_, battle:battle_, cheer:cheer_, huntSet:huntSet_, huntStop:huntStop_, huntClaim:huntClaim_, gift:gift_}[action];
+    const fn = {me:()=>{}, setBadge:setBadge_, sheathSwap:sheathSwap_, sheathSell:sheathSell_, huntWeapon:huntWeaponSet_, skinBuy:skinBuy_, skinWear:skinWear_, huntBoss:huntBoss_, rr:rr_, yachaAsk:yachaAsk_, yachaAnswer:yachaAnswer_, yachaCancel:yachaCancel_, enhance:enhance_, sell:sell_, buyScroll:buyScroll_, aid:aid_, battle:battle_, cheer:cheer_, huntSet:huntSet_, huntStop:huntStop_, huntClaim:huntClaim_, gift:gift_}[action];
       if (fn && action !== 'cheer') settle_(st, out);
       if (!fn) return {ok:false, error:'알 수 없는 요청: '+action};
       const err = fn(st, req, out, row);
@@ -1036,6 +1036,31 @@ function sheathSell_(st, req, out, row) {
   const p = sellOf(sh.lv, sh.line); st.gold += p; st.sold++; st.sheath = null;
   say_(st, out, `검집의 +${sh.lv} ${nameOf(sh.lv, sh.line)}을(를) ${fmt(p)} G에 팔았습니다.`, 'gold'); out.fx = 'sell';
   if (sh.lv >= 10) feed_(`${row.nickname}님이 +${sh.lv} ${nameOf(sh.lv, sh.line)}을(를) ${fmt(p)} G에 팔았습니다.`);
+}
+
+// ── 졸라맨 스킨 (상점): 사냥 화면의 졸라맨 모습. 골드로 사고, 산 것 중 하나를 입음 ──
+const SKINS = [
+  {k:'basic',  n:'원조 졸라맨',   p:0,         d:'빨간 머리띠를 맨 그 졸라맨'},
+  {k:'ninja',  n:'닌자',          p:500000,    d:'검은 두건과 긴 목도리. 눈빛만 반짝'},
+  {k:'pirate', n:'해적 선장',     p:1500000,   d:'삼각 모자에 안대. 바위도 약탈한다'},
+  {k:'knight', n:'철갑 기사',     p:3000000,   d:'투구와 붉은 깃털, 파란 망토'},
+  {k:'wizard', n:'대마법사',      p:5000000,   d:'별이 박힌 고깔모자와 보라 망토'},
+  {k:'flame',  n:'불꽃 전사',     p:10000000,  d:'온몸이 달아오른 주황빛, 머리에서 불꽃이 피어오름'},
+  {k:'gold',   n:'황금 졸라맨',   p:30000000,  d:'번쩍이는 황금 몸과 왕관'},
+  {k:'shadow', n:'그림자 군주',   p:100000000, d:'보랏빛 기운과 빛나는 눈. 최고급 스킨'}];
+const SKIN_BY = {}; SKINS.forEach(x => SKIN_BY[x.k] = x);
+function skins_(st) { st.skins = Array.isArray(st.skins) ? st.skins : ['basic']; if (st.skins.indexOf('basic') < 0) st.skins.unshift('basic'); if (!SKIN_BY[st.skin]) st.skin = 'basic'; return st.skins; }
+function skinBuy_(st, req, out) {
+  const s = SKIN_BY[req.k]; if (!s) return '없는 스킨입니다';
+  const own = skins_(st); if (own.indexOf(s.k) >= 0) return '이미 가지고 있는 스킨입니다';
+  if (st.gold < s.p) return `골드가 부족합니다 (${fmt(s.p)} G 필요)`;
+  st.gold -= s.p; own.push(s.k); st.skin = s.k;
+  say_(st, out, `🎽 ${s.n} 스킨을 ${fmt(s.p)} G에 샀습니다. 바로 입었습니다. 사냥 화면에서 확인해 보세요.`, 'gold'); out.fx = 'skin';
+}
+function skinWear_(st, req, out) {
+  const s = SKIN_BY[req.k]; if (!s) return '없는 스킨입니다';
+  if (skins_(st).indexOf(s.k) < 0) return '아직 사지 않은 스킨입니다';
+  st.skin = s.k; say_(st, out, `🎽 ${s.n} 스킨을 입었습니다.`, '');
 }
 
 // ── 사냥 무기: 손에 든 검 / 검집 검 / 자동(사냥 효율이 가장 좋은 쪽) ──
