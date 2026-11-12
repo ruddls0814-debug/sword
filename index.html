@@ -1577,7 +1577,7 @@ function hcFrame(ts){if(!HC.on||$("p-hunt").hidden||document.visibilityState!=="
   HC.breathe+=dt;const hunting=ST&&ST.hunt&&ST.hunt.d>=0;
   if(hunting){if(!HC.rock&&!HC.parts.some(p=>p.k==="shard"))hcNewRock(false);
     if(HC.cyc<0){HC.cyc=0;HC.impactDone=false}
-    HC.cyc+=dt*1000*(HC.reduce?.6:1);
+    HC.cyc+=dt*1000*(HC.reduce?.6:1)*hcSpeed();
     if(!HC.impactDone&&HC.cyc>=HSWING*hcImpactAt()){HC.impactDone=true;hcDoImpact(col)}
     if(HC.cyc>=HSWING+(HC.reduce?400:0)){HC.cyc=0;HC.impactDone=false}}
   else{HC.cyc=-1;HC.rock=null}
@@ -1593,6 +1593,7 @@ function huntAnim(){hcInit();hcSetSword();const d=ST&&ST.hunt?ST.hunt.d:-1;if(d!
 function hitRock(){}
 // 무기별 동작이 바꿔 끼우는 자리 (기본: 휘두르기)
 function hcImpactAt(){return .53}
+function hcSpeed(){return 1}
 function hcDoImpact(col){hcImpact(hcRig(hcPose(.53)),col)}
 
 document.addEventListener("visibilitychange",()=>{if(ST)huntAnim()});
@@ -1726,7 +1727,7 @@ async function openHunt(){if(META&&!META.dungeons){try{const m=await call("boots
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794473885;
+const BUILD=1794476274;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
@@ -2613,6 +2614,92 @@ function drawThrow(c,t,r,R){if(!(HC.img&&HC.cell>=0)||t<.36||t>=.82)return;const
   else{const k=(t-.5)/.32;x=lerp(fx,hand2.grip[0],ease.io(k));y=lerp(fy,hand2.grip[1],ease.io(k))-Math.sin(k*Math.PI)*60}
   c.save();c.translate(x,y);c.rotate(performance.now()/1000*18);c.shadowColor="rgba(0,0,0,.45)";c.shadowBlur=5;drawCell(c,-D/2,-D/2,D);c.restore()}
 if(ST&&META&&typeof huntAnim==="function")try{huntAnim()}catch(e){}
+</script>
+<script>// ════ 우진 전용 사냥 동작: 매번 다른 웃긴 장면 ════
+// kick  「넌 나가라!」 밀쳐서 날려 보냄 → 바위에 꽥 → 어지러워하며 복귀
+// pop   바위 앞에서 빵빵하게 부풀다 펑! → 조각이 날아갔다 다시 붙음 (반창고)
+// spin  팽이처럼 빙글빙글 돌며 돌진 → 쾅 → 비틀비틀
+// angry 킹받아서 빨개지고 김이 남 → 쿵쾅 돌진
+// meteor 하늘로 솟구쳤다가 운석처럼 낙하 (+15부터)
+MOTION[40]="woojin";
+const WJ={v:"kick",prev:"",lastT:-1,frags:[],said:{},tape:0};
+function wjPool(lv){return lv>=15?["kick","pop","spin","angry","meteor"]:lv>=10?["kick","pop","spin","angry"]:lv>=5?["kick","pop","spin"]:["kick","spin","pop"]}
+function wjPick(){const p=wjPool(HC.wlv||1).filter(x=>x!==WJ.prev);WJ.v=p[Math.floor(Math.random()*p.length)];WJ.prev=WJ.v;WJ.said={};WJ.frags=[]}
+const WJ_IMPACT={kick:.5,pop:.52,spin:.46,angry:.44,meteor:.5};
+const _hcSpeedW=hcSpeed;hcSpeed=function(){return HC.mode==="woojin"?.6:_hcSpeedW()};
+const _hcImpactAtW=hcImpactAt;hcImpactAt=function(){return HC.mode==="woojin"?WJ_IMPACT[WJ.v]:_hcImpactAtW()};
+const _hcDoImpactW=hcDoImpact;hcDoImpact=function(col){if(HC.mode!=="woojin"||!HC.rock)return _hcDoImpactW(col);const R=HC.rock;
+  const dy=WJ.v==="meteor"?-30:WJ.v==="pop"?-4:6,fx=WJ.v==="meteor"?R.cx-6:R.cx-44,fy=R.cy+dy;
+  hcImpact({grip:[fx-40,fy],tip:[fx+30,fy]},col);if(WJ.v==="meteor"){HC.shake=HC.reduce?0:14;hcBurst(R.cx,R.cy-10,14,"#ffb03a",true)}
+  try{if(!SOUND)return;if(WJ.v==="pop"){noise(0,.18,.32,900,.6);tone(180,0,.25,"sine",.18,60)}else if(WJ.v==="meteor"){noise(0,.5,.4,500,.5);tone(90,0,.6,"sine",.25,40)}else tone(620,0,.18,"square",.05,180)}catch(e){}};
+// 졸라맨 자세
+const WJP={ready:{sa:-1.25,lean:0,cr:.1,rise:0},push:{sa:-.15,lean:.34,cr:.34,rise:0},wind:{sa:-1.4,lean:-.18,cr:.2,rise:0},up:{sa:-2.1,lean:-.12,cr:.05,rise:3},facepalm:{sa:-2.4,lean:.1,cr:.15,rise:0},point:{sa:-.3,lean:.16,cr:.2,rise:0}};
+const mixW=(A,B,k)=>({sa:lerp(A.sa,B.sa,k),lean:lerp(A.lean,B.lean,k),cr:lerp(A.cr,B.cr,k),rise:lerp(A.rise,B.rise,k)});
+const _hcPoseW=hcPose;hcPose=function(t){if(HC.mode!=="woojin")return _hcPoseW(t);const b=Math.sin(HC.breathe*2.2);
+  if(t<0)return{sa:WJP.ready.sa+b*.04,lean:b*.012,cr:.1+b*.03,rise:0};const v=WJ.v;
+  if(v==="kick")return t<.2?mixW(WJP.ready,WJP.wind,ease.io(t/.2)):t<.27?mixW(WJP.wind,WJP.push,ease.i3((t-.2)/.07)):t<.6?WJP.push:t<.8?mixW(WJP.push,WJP.ready,ease.io((t-.6)/.2)):WJP.ready;
+  if(v==="meteor")return t<.12?mixW(WJP.ready,WJP.up,ease.io(t/.12)):t<.45?WJP.up:t<.62?mixW(WJP.up,WJP.facepalm,ease.io((t-.45)/.17)):t<.85?WJP.facepalm:mixW(WJP.facepalm,WJP.ready,ease.io((t-.85)/.15));
+  if(v==="pop")return t<.5?WJP.ready:t<.6?mixW(WJP.ready,WJP.facepalm,ease.io((t-.5)/.1)):t<.8?WJP.facepalm:mixW(WJP.facepalm,WJP.ready,ease.io((t-.8)/.2));
+  return t<.1?mixW(WJP.ready,WJP.point,ease.io(t/.1)):t<.55?WJP.point:t<.75?mixW(WJP.point,WJP.ready,ease.io((t-.55)/.2)):WJP.ready};
+const _hcDrawSwordW=hcDrawSword;hcDrawSword=function(c,r){if(HC.mode==="woojin")return;return _hcDrawSwordW(c,r)};
+// 말풍선
+function wjBubble(c,x,y,txt,col){c.save();c.font="900 15px system-ui,sans-serif";const w=c.measureText(txt).width+18,h=26,bx=Math.max(4,Math.min(HC.w-w-4,x-w/2)),by=Math.max(50,y-h-8);y=by+h+8;
+  c.fillStyle=col||"#fff";c.strokeStyle="rgba(0,0,0,.75)";c.lineWidth=2.5;c.beginPath();if(c.roundRect)c.roundRect(bx,by,w,h,10);else c.rect(bx,by,w,h);c.fill();c.stroke();
+  c.beginPath();c.moveTo(x-5,by+h-1);c.lineTo(x,by+h+8);c.lineTo(x+6,by+h-1);c.closePath();c.fill();c.stroke();c.fillStyle=col?"#fff":"#1a1512";if(!col){}else c.fillStyle="#1a1512";
+  c.textAlign="center";c.textBaseline="middle";c.fillStyle="#1a1512";c.fillText(txt,bx+w/2,by+h/2+1);c.restore()}
+function wjSay(key,fn){if(!WJ.said[key]){WJ.said[key]=1;try{fn&&fn()}catch(e){}}}
+function wjStars(c,x,y,now){for(let i=0;i<3;i++){const a=now*5+i*2.1;c.fillStyle="#ffe17a";c.font="14px system-ui";c.textAlign="center";c.fillText("★",x+Math.cos(a)*16,y+Math.sin(a)*5)}}
+function wjDraw(c,x,y,D,o){o=o||{};c.save();c.translate(x,y);if(o.rot)c.rotate(o.rot);c.scale((o.sx||1),(o.sy||1));
+  c.shadowColor="rgba(0,0,0,.45)";c.shadowBlur=6;if(o.red)c.drawImage(wjRed(),-D*.5,-D,D,D);else drawCell(c,-D*.5,-D,D);
+  if(o.tape){c.shadowBlur=0;c.strokeStyle="rgba(240,220,170,.95)";c.lineWidth=7;c.beginPath();c.moveTo(-D*.2,-D*.75);c.lineTo(D*.18,-D*.5);c.moveTo(D*.18,-D*.75);c.lineTo(-D*.2,-D*.5);c.stroke()}
+  c.restore()}
+// 빨개진 우진 (사파리에서도 되도록 별도 캔버스에 칠함)
+function wjRed(){const key=HC.imgSrc+"|"+HC.cell;if(WJ.redKey===key&&WJ.redCv)return WJ.redCv;const cv=WJ.redCv||document.createElement("canvas");cv.width=cv.height=180;const x=cv.getContext("2d");x.clearRect(0,0,180,180);
+  const S=360;x.drawImage(HC.img,(HC.cell%5)*S,Math.floor(HC.cell/5)*S,S,S,0,0,180,180);x.globalCompositeOperation="source-atop";x.fillStyle="rgba(255,30,20,.42)";x.fillRect(0,0,180,180);x.globalCompositeOperation="source-over";WJ.redCv=cv;WJ.redKey=key;return cv}
+// 조각 (펑!)
+function wjBurstFrags(x,y,D){WJ.frags=[];const n=3;for(let i=0;i<n;i++)for(let j=0;j<n;j++){const a=Math.random()*Math.PI*2,v=160+Math.random()*180;
+  WJ.frags.push({sx:i/n,sy:j/n,x:x+(i-1)*D/3,y:y-D+(j+.5)*D/3,vx:Math.cos(a)*v,vy:Math.sin(a)*v-160,rot:0,vr:(Math.random()-.5)*14,hx:0,hy:0})}}
+const _hcDrawRockW=hcDrawRock;hcDrawRock=function(c,col){_hcDrawRockW.apply(this,arguments);if(HC.mode==="woojin")try{drawWJ(c)}catch(e){}};
+function drawWJ(c){if(!(HC.img&&HC.cell>=0))return;const now=performance.now()/1000,nowMs=performance.now(),dt=Math.min(.05,(nowMs-(WJ.lastNow||nowMs))/1000);WJ.lastNow=nowMs;
+  const t=HC.cyc<0?-1:Math.min(1,HC.cyc/HSWING);if(t>=0&&t<WJ.lastT)wjPick();WJ.lastT=t;
+  const R=HC.rock,g=hcGround(),D=64+Math.min(22,HC.wlv),home=hcHipX()+62,tgt=R?R.cx-48-D*.32:home+110,hd=hcRig(hcPose(t)).head;
+  if(t<0){wjDraw(c,home,g,D,{sy:1+Math.sin(now*3)*.03});return}
+  const v=WJ.v;
+  if(v==="kick"){
+    if(t<.27){wjDraw(c,home,g,D,{rot:Math.sin(now*20)*(t>.12?.06:0)});if(t>.04)wjBubble(c,hd[0]+8,hd[1]-16,"넌 나가라!")}
+    else if(t<.5){const k=(t-.27)/.23;wjDraw(c,lerp(home,tgt,k),g-Math.sin(k*Math.PI)*70,D,{rot:k*Math.PI*3});wjSay("w",()=>{if(SOUND)tone(700,0,.3,"triangle",.07,1200)})}
+    else if(t<.6){wjDraw(c,tgt,g,D,{sx:.75,sy:1.15,rot:-.15});wjBubble(c,tgt,g-D-6,"꽥!","#ffe17a")}
+    else{const k=Math.min(1,(t-.6)/.3);wjDraw(c,lerp(tgt,home,ease.io(k)),g,D,{rot:Math.sin(now*9)*.18});wjStars(c,lerp(tgt,home,ease.io(k)),g-D-4,now)}}
+  else if(v==="pop"){
+    if(t<.22){const k=t/.22;wjDraw(c,lerp(home,tgt,ease.io(k)),g-Math.abs(Math.sin(k*Math.PI*3))*10,D)}
+    else if(t<.52){const k=(t-.22)/.3,s=1+k*.9+Math.sin(now*30)*.05*k;wjDraw(c,tgt,g,D,{sx:s,sy:s});if(k>.25)wjBubble(c,tgt,g-D*s-6,k>.75?"터,터진다…!":"후우우욱","#ffffff");wjSay("inflate",()=>{if(SOUND)tone(200,0,.5,"sine",.06,600)})}
+    else{if(!WJ.frags.length)wjBurstFrags(tgt,g,D*1.9);const back=t>.7?Math.min(1,(t-.7)/.18):0;
+      WJ.frags.forEach(f=>{if(back<=0){f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=700*dt;f.rot+=f.vr*dt;if(f.y>g-6){f.y=g-6;f.vy*=-.3;f.vx*=.7}f.hx=f.x;f.hy=f.y}
+        else{f.x=lerp(f.hx,home+(f.sx-.33)*D,ease.io(back));f.y=lerp(f.hy,g-D+(f.sy+.17)*D,ease.io(back));f.rot*=1-back}
+        const S=360,ps=S/3,sx=(HC.cell%5)*S+f.sx*S,sy=Math.floor(HC.cell/5)*S+f.sy*S,pd=D/3*(back>0?1:1.9);c.save();c.translate(f.x,f.y);c.rotate(f.rot);c.drawImage(HC.img,sx,sy,ps,ps,-pd/2,-pd/2,pd,pd);c.restore()});
+      if(t<.62){c.save();c.font="900 34px system-ui,sans-serif";c.textAlign="center";c.lineWidth=6;c.strokeStyle="rgba(0,0,0,.7)";c.strokeText("펑!",tgt,g-D*1.4);c.fillStyle="#ffcf3d";c.fillText("펑!",tgt,g-D*1.4);c.restore()}
+      if(t>=.9){wjDraw(c,home,g,D,{tape:1});wjBubble(c,home,g-D-6,"다시 붙임")}}}
+  else if(v==="spin"){
+    if(t<.12){wjDraw(c,home,g,D,{rot:Math.sin(now*14)*.1})}
+    else if(t<.46){const k=(t-.12)/.34;wjDraw(c,lerp(home,tgt,ease.i3(k)*.5+k*.5),g,D,{sx:Math.cos(now*28),rot:0});wjSay("s",()=>{if(SOUND)tone(300,0,.4,"sawtooth",.035,900)});if(k>.3)wjBubble(c,lerp(home,tgt,k),g-D-8,"우우우우웅")}
+    else if(t<.56){wjDraw(c,tgt,g,D,{sx:.8,sy:1.1})}
+    else{const k=Math.min(1,(t-.56)/.36);const x=lerp(tgt,home,ease.io(k));wjDraw(c,x,g,D,{rot:Math.sin(now*7)*.28});wjStars(c,x,g-D-4,now);if(k<.5)wjBubble(c,x,g-D-14,"어지러…")}}
+  else if(v==="angry"){
+    if(t<.3){const sh=Math.sin(now*60)*3;wjDraw(c,home+sh,g,D,{red:t>.08});if(t>.06){for(let i=0;i<3;i++){const k=(now*1.5+i/3)%1;c.fillStyle=`rgba(235,235,235,${.6*(1-k)})`;c.beginPath();c.arc(home-14+i*14,g-D-6-k*26,5+k*6,0,7);c.fill()}wjBubble(c,home,g-D-34,"킹받네…","#ffd0c8")}}
+    else if(t<.44){const k=(t-.3)/.14;wjDraw(c,lerp(home,tgt,k),g,D,{red:1,rot:.2});for(let i=0;i<4;i++){c.strokeStyle="rgba(255,255,255,.5)";c.lineWidth=2;c.beginPath();const lx=lerp(home,tgt,k)-D*.6-i*8;c.moveTo(lx,g-D*.3-i*8);c.lineTo(lx-18,g-D*.3-i*8);c.stroke()}}
+    else if(t<.54){wjDraw(c,tgt,g,D,{red:1,sx:.78,sy:1.12})}
+    else{const k=Math.min(1,(t-.54)/.3);wjDraw(c,lerp(tgt,home,ease.io(k)),g-Math.abs(Math.sin(k*Math.PI*2))*12,D);if(k<.6)wjBubble(c,lerp(tgt,home,k),g-D-6,"후련~")}}
+  else if(v==="meteor"){
+    if(t<.12){const k=t/.12;wjDraw(c,home,g+Math.sin(k*Math.PI)*6,D,{sx:1+k*.2,sy:1-k*.2});wjBubble(c,hd[0]+6,hd[1]-16,"우주 대폭발 가자!")}
+    else if(t<.3){const k=(t-.12)/.18;wjDraw(c,lerp(home,(home+tgt)/2,k),g-k*(HC.h+40),D);wjSay("up",()=>{if(SOUND)tone(300,0,.4,"sine",.08,1400)})}
+    else if(t<.5){const k=(t-.3)/.2,x=R?R.cx:tgt,y=lerp(-D,R?R.cy-20:g,ease.i3(k));
+      for(let i=0;i<6;i++){c.fillStyle=`rgba(255,${140+i*18},60,${.5-i*.07})`;c.beginPath();c.arc(x-i*5,y-D*.5-i*12,D*.36-i*3,0,7);c.fill()}
+      wjDraw(c,x,y,D,{rot:Math.PI});if(k<.6)wjBubble(c,x,Math.max(30,y-D-10),"으아아아","#ffe17a")}
+    else if(t<.68){const x=R?R.cx-10:tgt,k=(t-.5)/.18;c.save();c.globalCompositeOperation="lighter";const gr=c.createRadialGradient(x,g-20,0,x,g-20,90*(1-k*.5));gr.addColorStop(0,`rgba(255,240,180,${.8*(1-k)})`);gr.addColorStop(1,"rgba(255,140,40,0)");c.fillStyle=gr;c.beginPath();c.arc(x,g-20,90,0,7);c.fill();c.restore();
+      wjDraw(c,x,g,D,{sx:1.3,sy:.6})}
+    else{const k=Math.min(1,(t-.68)/.25);wjDraw(c,lerp(R?R.cx-10:tgt,home,ease.io(k)),g-Math.abs(Math.sin(k*Math.PI*2))*16,D,{tape:1});if(k<.7)wjBubble(c,lerp(R?R.cx:tgt,home,k),g-D-6,"멀쩡함 ㅎ")}}
+}
+if(ST&&META&&typeof huntAnim==="function")try{hcSetSword();huntAnim()}catch(e){}
 </script>
 </body>
 </html>
