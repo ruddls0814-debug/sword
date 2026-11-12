@@ -1721,7 +1721,7 @@ async function openHunt(){if(META&&!META.dungeons){try{const m=await call("boots
 })();
 </script>
 <script>// ── 패치 알림: 새 버전이 올라오면 공지를 띄우고 자동 새로고침 (version.json 은 GitHub 에서 받으므로 게임 서버 요청을 쓰지 않음) ──
-const BUILD=1794447866;
+const BUILD=1794449974;
 try{const q=new URLSearchParams(location.search);if(q.has("v"))history.replaceState(null,"",location.pathname+location.hash)}catch(e){}
 function showPatch(v,reload){if(document.getElementById("patchBox"))return;
   const box=document.createElement("div");box.id="patchBox";box.className="gate";box.setAttribute("role","dialog");box.setAttribute("aria-label","패치 공지");
@@ -2278,6 +2278,10 @@ const _setArtU=setArt;setArt=function(el,line,lv){if(!el||el.id!=="art"||line==n
   addEventListener("scroll",tick,{passive:true});addEventListener("resize",()=>{fit();tick()});
   if(window.ResizeObserver){const ro=new ResizeObserver(()=>{fit();tick()});ro.observe(nav);if(act)ro.observe(act)}
   fit();vis();setTimeout(()=>{fit();vis()},600)})();
+// 8) 직접 두들기기 막대: 강화 버튼 줄 바로 위에 (버튼 줄이 하단 탭 위로 올라갔으므로)
+placeTap=function(){const a=document.querySelector(".actions"),g=$("tapGame");if(!g)return;const fixed=a&&getComputedStyle(a).position==="fixed";
+  if(fixed){const top=a.getBoundingClientRect().top;g.style.bottom=Math.max(10,innerHeight-top+10)+"px"}else{const n=document.querySelector(".navbar");g.style.bottom=((n?n.offsetHeight:0)+24)+"px"}};
+const _startTapU=startTap;startTap=function(){document.body.classList.remove("noact");return _startTapU.apply(this,arguments)};
 if(ST&&META)render();
 </script>
 </body>
